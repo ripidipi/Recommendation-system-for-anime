@@ -7,6 +7,8 @@
         <class>Data.Producer</class>
         <class>Data.Genre</class>
         <class>Data.Demographic</class>
+        <class>Data.Users</class>
+        <class>Data.UserAnimeStat</class>
 
         <properties>
             <property name="jakarta.persistence.jdbc.url" value="jdbc:postgresql://localhost:5432/anime_db"/>

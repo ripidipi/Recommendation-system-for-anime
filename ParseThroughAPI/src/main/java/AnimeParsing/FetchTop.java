@@ -1,22 +1,29 @@
 package AnimeParsing;
 
+import Exeptions.HttpRequestException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 
 
-public class Main {
+public class FetchTop {
+
     private static final String BASE = "https://api.jikan.moe/v4";
     private static final HttpClient client = HttpClient.newHttpClient();
     private static final ObjectMapper mapper = new ObjectMapper();
 
-    public static void main(String[] args)  {
-        for (int i = 1; i < 1000; i++) {
+    public static void main(String[] args) {
+        fetchAndPersistTopAnime(700);
+    }
+
+    public static void fetchAndPersistTopAnime(int numberOfPages)  {
+        for (int i = 1; i <= numberOfPages; i++) {
             try {
-                AnimeTopResult animeTopResult = fetchTopAnime(i);
+                AnimeTopResult animeTopResult = fetchTopAnimePage(i);
                 for (var anime: animeTopResult.data) {
                     Parser.saveAnimeToDB(anime);
                 }
@@ -29,9 +36,10 @@ public class Main {
                 } catch (InterruptedException _) { }
             }
         }
+        System.out.println("Total anime pages fetched: " + numberOfPages);
     }
 
-    private static AnimeTopResult fetchTopAnime(int page) throws Exception {
+    private static AnimeTopResult fetchTopAnimePage(int page) throws IOException, InterruptedException {
         String url = String.format("%s/top/anime?page=%d", BASE, page);
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(url))
@@ -45,10 +53,6 @@ public class Main {
         return mapper.readValue(response.body(), AnimeTopResult.class);
     }
 
-    private static class HttpRequestException extends RuntimeException {
-        public HttpRequestException(String msg) {
-            super(msg);
-        }
-    }
+
 
 }
