@@ -1,4 +1,4 @@
-package Data;
+package Utils;
 
 import jakarta.persistence.EntityManagerFactory;
 import jakarta.persistence.Persistence;

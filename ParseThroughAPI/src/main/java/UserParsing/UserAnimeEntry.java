@@ -1,17 +1,18 @@
 package UserParsing;
 
-import AnimeParsing.Anime;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-
-import java.time.OffsetDateTime;
-
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.PropertyNamingStrategies;
+import com.fasterxml.jackson.databind.annotation.JsonNaming;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
+@JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
 public class UserAnimeEntry {
-    public Anime anime;
-    public Integer score;
-    public String status;
-    public Integer episodes_watched;
-    public OffsetDateTime lastUpdated;
 
+    public Integer animeId;
+    public Integer score;
+    public Integer status;
+    public Integer numWatchedEpisodes;
+    public Long createdAt;
+    public Long updatedAt;
 }

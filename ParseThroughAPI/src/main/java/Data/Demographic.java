@@ -41,8 +41,9 @@ public class Demographic {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (!(o instanceof Producer)) return false;
-        return malId == ((Producer) o).malId;
+        if (o == null || getClass() != o.getClass()) return false;
+        Demographic that = (Demographic) o;
+        return malId == that.malId;
     }
 
     @Override

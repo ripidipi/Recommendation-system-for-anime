@@ -8,7 +8,7 @@
         <class>Data.Genre</class>
         <class>Data.Demographic</class>
         <class>Data.Users</class>
-        <class>Data.UserAnimeStat</class>
+        <class>Data.UserStat</class>
 
         <properties>
             <property name="jakarta.persistence.jdbc.url" value="jdbc:postgresql://localhost:5432/anime_db"/>
@@ -18,7 +18,7 @@
 
             <property name="hibernate.dialect"
                       value="org.hibernate.dialect.PostgreSQL10Dialect"/>
-            <property name="hibernate.hbm2ddl.auto" value="create"/>
+            <property name="hibernate.hbm2ddl.auto" value="update"/>
             <property name="hibernate.show_sql" value="true"/>
         </properties>
     </persistence-unit>

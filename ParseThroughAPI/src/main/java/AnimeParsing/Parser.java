@@ -11,10 +11,15 @@ public class Parser {
         EntityManager em = emf.createEntityManager();
         EntityTransaction tx = em.getTransaction();
 
+        if (dto.title == null || dto.title.isBlank()) {
+            System.out.println("Skipping anime with empty title, malId=" + dto.malId);
+            return;
+        }
+
         try {
             tx.begin();
 
-            var existingAnime = em.find(Data.Anime.class, dto.mal_id);
+            var existingAnime = em.find(Data.Anime.class, dto.malId);
             if (existingAnime != null) {
                 AnimeMapper.update(existingAnime, dto, em);
                 em.merge(existingAnime);

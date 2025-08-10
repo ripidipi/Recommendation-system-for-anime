@@ -9,7 +9,7 @@ public class AnimeMapper {
 
     public static Data.Anime map(Anime dto, EntityManager em) {
         Data.Anime entity = new Data.Anime();
-        entity.setMalId(dto.mal_id);
+        entity.setMalId(dto.malId);
         seting(entity, dto, em);
 
         return entity;
@@ -21,15 +21,16 @@ public class AnimeMapper {
 
     private static void seting(Data.Anime entity, Anime dto, EntityManager em) {
         entity.setUrl(dto.url);
+        entity.setStatus(dto.status);
         entity.setTitle(dto.title);
         entity.setApproved(dto.approved);
-        entity.setTitleEnglish(dto.title_english);
-        entity.setTitleJapanese(dto.title_japanese);
+        entity.setTitleEnglish(dto.titleEnglish);
+        entity.setTitleJapanese(dto.titleJapanese);
         entity.setType(dto.type);
         entity.setEpisodes(dto.episodes);
         entity.setRating(dto.rating);
         entity.setScore(dto.score);
-        entity.setScoredBy(dto.scored_by);
+        entity.setScoredBy(dto.scoredBy);
         entity.setSynopsis(dto.synopsis);
         entity.setBackground(dto.background);
         entity.setSeason(dto.season);
@@ -55,11 +56,6 @@ public class AnimeMapper {
                     .map(g -> findOrCreateGenre(g, em))
                     .collect(Collectors.toList()));
 
-        if (dto.explicit_genres != null)
-            entity.setExplicitGenres(dto.explicit_genres.stream()
-                    .map(g -> findOrCreateGenre(g, em))
-                    .collect(Collectors.toList()));
-
         if (dto.themes != null)
             entity.setThemes(dto.themes.stream()
                     .map(g -> findOrCreateGenre(g, em))
@@ -73,11 +69,11 @@ public class AnimeMapper {
 
 
     private static Data.Producer findOrCreateProducer(AnimeParsing.Producer dto, EntityManager em) {
-        Data.Producer existing = em.find(Data.Producer.class, dto.mal_id);
+        Data.Producer existing = em.find(Data.Producer.class, dto.malId);
         if (existing != null) return existing;
 
         Data.Producer p = new Data.Producer();
-        p.setMalId(dto.mal_id);
+        p.setMalId(dto.malId);
         p.setName(dto.name);
         p.setType(dto.type);
         p.setUrl(dto.url);
@@ -86,11 +82,11 @@ public class AnimeMapper {
     }
 
     private static Data.Genre findOrCreateGenre(AnimeParsing.Genre dto, EntityManager em) {
-        Data.Genre existing = em.find(Data.Genre.class, dto.mal_id);
+        Data.Genre existing = em.find(Data.Genre.class, dto.malId);
         if (existing != null) return existing;
 
         Data.Genre g = new Data.Genre();
-        g.setMalId(dto.mal_id);
+        g.setMalId(dto.malId);
         g.setName(dto.name);
         g.setType(dto.type);
         g.setUrl(dto.url);
@@ -99,11 +95,11 @@ public class AnimeMapper {
     }
 
     private static Data.Demographic findOrCreateDemographic(AnimeParsing.Demographic dto, EntityManager em) {
-        Data.Demographic existing = em.find(Data.Demographic.class, dto.mal_id);
+        Data.Demographic existing = em.find(Data.Demographic.class, dto.malId);
         if (existing != null) return existing;
 
         Data.Demographic d = new Data.Demographic();
-        d.setMalId(dto.mal_id);
+        d.setMalId(dto.malId);
         d.setName(dto.name);
         d.setUrl(dto.url);
         em.persist(d);

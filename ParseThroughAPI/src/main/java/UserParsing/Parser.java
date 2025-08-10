@@ -1,12 +1,13 @@
 package UserParsing;
 
-import Data.UserAnimeStat;
+import Data.UserStat;
 import Data.Users;
+import Mapper.UserAnimeStatMapper;
 import jakarta.persistence.*;
 import Mapper.UserMapper;
-import Mapper.UserAnimeStatMapper;
+import Mapper.UserStatMapper;
 
-import java.util.List;
+import java.io.IOException;
 
 
 public class Parser {
@@ -20,11 +21,13 @@ public class Parser {
         try {
             tx.begin();
 
-            Users user = UserMapper.mapOrUpdate(dto, em);
+            Users user = UserMapper.mapOrCreate(dto, em);
 
             StatsData stats = FetchUsers.fetchUserStats(dto.username);
 
-            UserAnimeStat userStats = UserAnimeStatMapper.mapOrCreate(stats, user, em);
+            AnimeListPersist(dto, em);
+
+            UserStat userStats = UserStatMapper.mapOrCreate(stats, user, em);
             em.merge(userStats);
 
             tx.commit();
@@ -43,9 +46,11 @@ public class Parser {
         try {
             tx.begin();
 
-            Users user = UserMapper.mapOrUpdate(dto, em);
+            Users user = UserMapper.mapOrCreate(dto, em);
 
-            UserAnimeStat userStats = UserAnimeStatMapper.mapOrCreate(stats, user, em);
+            AnimeListPersist(dto, em);
+
+            UserStat userStats = UserStatMapper.mapOrCreate(stats, user, em);
             em.merge(userStats);
 
             tx.commit();
@@ -54,6 +59,29 @@ public class Parser {
             throw new RuntimeException("Error saving user and stats: " + dto.username, e);
         } finally {
             em.close();
+        }
+    }
+
+
+    private static void AnimeListPersist(UserLite dto, EntityManager em) throws IOException, InterruptedException {
+        final int batchSize = 100;
+        final int[] counter = {0};
+
+        boolean ok = FetchUsers.fetchUserAnimeList(dto.username, page -> {
+            for (UserAnimeEntry entry : page) {
+                UserAnimeStatMapper.mapAndCreate(entry, dto.malId, em);
+                if (++counter[0] % batchSize == 0) {
+                    em.flush();
+                }
+            }
+            try {
+                em.flush();
+            } catch (Exception e) {
+                System.out.println("Flush error for user " + dto.username + ": " + e.getMessage());
+            }
+        });
+        if (!ok) {
+            System.out.println("Warning: partial data for user " + dto.username + " (fetch returned false).");
         }
     }
 

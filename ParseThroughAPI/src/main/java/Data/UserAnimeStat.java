@@ -2,54 +2,81 @@ package Data;
 
 import jakarta.persistence.*;
 
+import java.io.Serializable;
+import java.time.OffsetDateTime;
+import java.util.Objects;
+
 @Entity
-@Table(name = "user_stat")
+@Table(name = "user_anime_stat")
+@IdClass(UserAnimeStat.UserAnimeKey.class)
 public class UserAnimeStat {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    @Column(name = "user_id", nullable = false)
+    private Integer userId;
 
-    @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id", nullable = false, unique = true)
-    private Users user;
+    @Id
+    @Column(name = "anime_id", nullable = false)
+    private Integer animeId;
 
-    @Column(name = "days_watched")
-    private double daysWatched;
+    @Column(name = "score")
+    private Integer score;
 
-    @Column(name = "mean_score")
-    private double meanScore;
+    @Column(name = "status", length = 64)
+    private String status;
 
-    @Column(nullable = false)
-    private int watching;
+    @Column(name = "episodes_watched")
+    private Integer episodesWatched;
 
-    @Column(nullable = false)
-    private int completed;
+    @Column(name = "last_updated")
+    private OffsetDateTime lastUpdated;
 
-    @Column(name = "on_hold", nullable = false)
-    private int onHold;
-
-    @Column(nullable = false)
-    private int dropped;
-
-    @Column(name = "plan_to_watch", nullable = false)
-    private int planToWatch;
-
-    @Column(name = "total_entries", nullable = false)
-    private int totalEntries;
-
-    @Column(nullable = false)
-    private int rewatched;
-
-    @Column(name = "episodes_watched", nullable = false)
-    private int episodesWatched;
-
-    public Long getId() {
-        return id;
+    public Integer getUserId() {
+        return userId;
     }
 
-    public void setId(Long id) {
-        this.id = id;
+    public void setUserId(Integer userId) {
+        this.userId = userId;
+    }
+
+    public Integer getAnimeId() {
+        return animeId;
+    }
+
+    public void setAnimeId(Integer animeId) {
+        this.animeId = animeId;
+    }
+
+    public Integer getScore() {
+        return score;
+    }
+
+    public void setScore(Integer score) {
+        this.score = score;
+    }
+
+    public String getStatus() {
+        return status;
+    }
+
+    public void setStatus(String status) {
+        this.status = status;
+    }
+
+    public Integer getEpisodesWatched() {
+        return episodesWatched;
+    }
+
+    public void setEpisodesWatched(Integer episodesWatched) {
+        this.episodesWatched = episodesWatched;
+    }
+
+    public OffsetDateTime getLastUpdated() {
+        return lastUpdated;
+    }
+
+    public void setLastUpdated(OffsetDateTime lastUpdated) {
+        this.lastUpdated = lastUpdated;
     }
 
     public Users getUser() {
@@ -60,83 +87,42 @@ public class UserAnimeStat {
         this.user = user;
     }
 
-    public double getDaysWatched() {
-        return daysWatched;
-    }
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", insertable = false, updatable = false)
+    private Users user;
 
-    public void setDaysWatched(double days_watched) {
-        this.daysWatched = days_watched;
-    }
+    public static class UserAnimeKey implements Serializable {
+        private Integer userId;
+        private Integer animeId;
 
-    public double getMeanScore() {
-        return meanScore;
-    }
+        @Override
+        public boolean equals(Object o) {
+            if (o == null || getClass() != o.getClass()) return false;
+            UserAnimeKey that = (UserAnimeKey) o;
+            return Objects.equals(userId, that.userId) && Objects.equals(animeId, that.animeId);
+        }
 
-    public void setMeanScore(double mean_score) {
-        this.meanScore = mean_score;
-    }
+        @Override
+        public int hashCode() {
+            return Objects.hash(userId, animeId);
+        }
 
-    public int getWatching() {
-        return watching;
-    }
+        public Integer getUserId() {
+            return userId;
+        }
 
-    public void setWatching(int watching) {
-        this.watching = watching;
-    }
+        public void setUserId(Integer userId) {
+            this.userId = userId;
+        }
 
-    public int getCompleted() {
-        return completed;
-    }
+        public Integer getAnimeId() {
+            return animeId;
+        }
 
-    public void setCompleted(int completed) {
-        this.completed = completed;
-    }
-
-    public int getOnHold() {
-        return onHold;
-    }
-
-    public void setOnHold(int on_hold) {
-        this.onHold = on_hold;
-    }
-
-    public int getDropped() {
-        return dropped;
-    }
-
-    public void setDropped(int dropped) {
-        this.dropped = dropped;
-    }
-
-    public int getPlanToWatch() {
-        return planToWatch;
-    }
-
-    public void setPlanToWatch(int plan_to_watch) {
-        this.planToWatch = plan_to_watch;
-    }
-
-    public int getTotalEntries() {
-        return totalEntries;
-    }
-
-    public void setTotalEntries(int total_entries) {
-        this.totalEntries = total_entries;
-    }
-
-    public int getRewatched() {
-        return rewatched;
-    }
-
-    public void setRewatched(int rewatched) {
-        this.rewatched = rewatched;
-    }
-
-    public int getEpisodesWatched() {
-        return episodesWatched;
-    }
-
-    public void setEpisodesWatched(int episodes_watched) {
-        this.episodesWatched = episodes_watched;
+        public void setAnimeId(Integer animeId) {
+            this.animeId = animeId;
+        }
     }
 }
+
+

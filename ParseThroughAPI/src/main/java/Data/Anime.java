@@ -14,6 +14,9 @@ public class Anime {
     @Column(name = "url", nullable = false, length = 1024)
     private String url;
 
+    @Column(name = "status", length = 128)
+    private String status;
+
     @Column(name = "title", nullable = false, length = 512)
     private String title;
 
@@ -87,14 +90,6 @@ public class Anime {
 
     @ManyToMany(cascade = CascadeType.ALL)
     @JoinTable(
-            name = "anime_explicit_genre",
-            joinColumns = @JoinColumn(name = "anime_id"),
-            inverseJoinColumns = @JoinColumn(name = "genre_id")
-    )
-    private List<Genre> explicitGenres;
-
-    @ManyToMany(cascade = CascadeType.ALL)
-    @JoinTable(
             name = "anime_theme",
             joinColumns = @JoinColumn(name = "anime_id"),
             inverseJoinColumns = @JoinColumn(name = "genre_id")
@@ -123,6 +118,14 @@ public class Anime {
 
     public void setUrl(String url) {
         this.url = url;
+    }
+
+    public String getStatus() {
+        return status;
+    }
+
+    public void setStatus(String status) {
+        this.status = status;
     }
 
     public String getTitle() {
@@ -261,14 +264,6 @@ public class Anime {
         this.genres = genres;
     }
 
-    public List<Genre> getExplicitGenres() {
-        return explicitGenres;
-    }
-
-    public void setExplicitGenres(List<Genre> explicitGenres) {
-        this.explicitGenres = explicitGenres;
-    }
-
     public List<Genre> getThemes() {
         return themes;
     }
@@ -288,8 +283,9 @@ public class Anime {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (!(o instanceof Producer)) return false;
-        return malId == ((Producer) o).malId;
+        if (o == null || getClass() != o.getClass()) return false;
+        Anime that = (Anime) o;
+        return malId == that.malId;
     }
 
     @Override

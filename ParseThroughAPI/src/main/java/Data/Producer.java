@@ -52,8 +52,9 @@ public class Producer {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (!(o instanceof Producer)) return false;
-        return malId == ((Producer) o).malId;
+        if (o == null || getClass() != o.getClass()) return false;
+        Producer that = (Producer) o;
+        return malId == that.malId;
     }
 
     @Override
