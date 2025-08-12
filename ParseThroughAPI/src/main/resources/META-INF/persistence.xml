@@ -11,15 +11,27 @@
         <class>Data.UserStat</class>
 
         <properties>
-            <property name="jakarta.persistence.jdbc.url" value="jdbc:postgresql://localhost:5432/anime_db"/>
-            <property name="jakarta.persistence.jdbc.user" value="rudeus"/>
-            <property name="jakarta.persistence.jdbc.password" value="sylphi_pants"/>
-            <property name="jakarta.persistence.jdbc.driver" value="org.postgresql.Driver"/>
+            <!-- JDBC -->
+            <property name="hibernate.hikari.dataSourceClassName" value="org.postgresql.ds.PGSimpleDataSource"/>
+            <property name="hibernate.hikari.dataSource.url" value="jdbc:postgresql://localhost:5432/anime_db"/>
+            <property name="hibernate.hikari.dataSource.user" value="rudeus"/>
+            <property name="hibernate.hikari.dataSource.password" value="sylphi_pants"/>
 
-            <property name="hibernate.dialect"
-                      value="org.hibernate.dialect.PostgreSQL10Dialect"/>
+            <!-- Hikari-specific -->
+            <property name="hibernate.hikari.maximumPoolSize" value="10"/>
+            <property name="hibernate.hikari.minimumIdle" value="2"/>
+            <property name="hibernate.hikari.idleTimeout" value="30000"/>
+            <property name="hibernate.hikari.maxLifetime" value="1800000"/>
+            <property name="hibernate.hikari.connectionTimeout" value="30000"/>
+
+            <!-- Hibernate -->
+            <property name="hibernate.connection.provider_class" value="org.hibernate.hikaricp.internal.HikariCPConnectionProvider"/>
+            <property name="hibernate.dialect" value="org.hibernate.dialect.PostgreSQL10Dialect"/>
             <property name="hibernate.hbm2ddl.auto" value="update"/>
-            <property name="hibernate.show_sql" value="true"/>
+            <property name="hibernate.jdbc.batch_size" value="100"/>
+            <property name="hibernate.order_inserts" value="true"/>
+            <property name="hibernate.order_updates" value="true"/>
+            <property name="hibernate.jdbc.batch_versioned_data" value="true"/>
         </properties>
     </persistence-unit>
 </persistence>

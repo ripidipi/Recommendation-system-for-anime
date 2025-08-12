@@ -1,18 +1,20 @@
 package UserParsing;
 
 import Exeptions.HttpRequestException;
+import Utils.OkHttpClientManager;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
+import okhttp3.Call;
+import okhttp3.Headers;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.Response;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.List;
@@ -27,10 +29,9 @@ public class FetchUsers {
 
     private static final String API_HOST = "https://api.jikan.moe/v4";
     private static final String MAL_HOST = "https://myanimelist.net";
-    private static final HttpClient client = HttpClient.newBuilder()
-            .connectTimeout(Duration.ofSeconds(10))
-            .version(HttpClient.Version.HTTP_1_1)
-            .build();
+
+    private static final OkHttpClientManager HTTP_CLIENT_MANAGER = new OkHttpClientManager();
+
     private static final ObjectMapper mapper = new ObjectMapper()
             .setPropertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE)
             .findAndRegisterModules();
@@ -56,10 +57,9 @@ public class FetchUsers {
     );
 
     public static void fetchAndPersistRandomUsers(int numberOfUsers, int numberOfAnimeInLists) {
-        final int MAX_TASK_MS = 60_000;
-        final int INTERVAL_MS = 5_000;
-        final int BETWEEN_TASK_SLEEP_MS = 2_000;
-        final int POOL_SIZE = 7;
+        final int MAX_TASK_MS = 120_000;
+        final int BETWEEN_TASK_SLEEP_MS = 1_600;
+        final int POOL_SIZE = 10;
 
         ExecutorService workerPool = Executors.newFixedThreadPool(POOL_SIZE);
         ScheduledExecutorService scheduledCanceller = Executors.newSingleThreadScheduledExecutor();
@@ -84,6 +84,10 @@ public class FetchUsers {
                 Callable<Boolean> task = () -> {
                     try {
                         UserLite curUser = fetchRandomUser();
+                        try { Thread.sleep(BETWEEN_TASK_SLEEP_MS); } catch (InterruptedException ie) {
+                            Thread.currentThread().interrupt();
+                            return false;
+                        }
                         StatsData sd = fetchUserStats(curUser.username);
 
                         if (sd == null || sd.anime == null) {
@@ -116,7 +120,6 @@ public class FetchUsers {
                 Future<Boolean> future = workerPool.submit(task);
                 attempts.incrementAndGet();
 
-
                 ScheduledFuture<?> canceller = scheduledCanceller.schedule(() -> {
                     if (!future.isDone()) {
                         System.out.println("Cancelling long task (running > " + MAX_TASK_MS + " ms)");
@@ -128,7 +131,7 @@ public class FetchUsers {
                     try {
                         Boolean ok;
                         try {
-                            ok = future.get(MAX_TASK_MS + INTERVAL_MS, TimeUnit.MILLISECONDS);
+                            ok = future.get(MAX_TASK_MS + 5000, TimeUnit.MILLISECONDS);
                         } catch (TimeoutException te) {
                             future.cancel(true);
                             System.out.println("Future.get timeout -> cancelled");
@@ -146,7 +149,8 @@ public class FetchUsers {
 
                         if (Boolean.TRUE.equals(ok)) {
                             int done = successCount.incrementAndGet();
-                            if (done % 25 == 0) System.out.println("<<<-------------------------->>>\n" +
+                            if (done % 25 == 0) System.out.println(
+                                    "<<<-------------------------->>>\n" +
                                     "Completed users: " + done + "/" + numberOfUsers +
                                     "\n<<<-------------------------->>>");
                         }
@@ -174,8 +178,6 @@ public class FetchUsers {
         System.out.println("Finished. Successful users: " + successCount.get() + ", attempts: " + attempts.get());
     }
 
-
-
     public static void fetchAndPersistUserByUsername(String username, int tryNumber) {
         try {
             UserLite curUser = fetchUserByUsername(username);
@@ -191,63 +193,68 @@ public class FetchUsers {
     private record DecodedResponse(int status, String body, String contentEncoding, String contentType) { }
 
     private static DecodedResponse fetchDecoded(String url) throws IOException, InterruptedException {
-        HttpResponse<byte[]> resp = client.send(requestBuild(url), HttpResponse.BodyHandlers.ofByteArray());
-        int status = resp.statusCode();
-        byte[] bodyBytes = resp.body();
-        String contentEncoding = resp.headers().firstValue("Content-Encoding").orElse("");
-        String contentType = resp.headers().firstValue("Content-Type").orElse("");
-        System.out.println("URL: " + url + " -> status=" + status + ", bytes=" + (bodyBytes==null?0:bodyBytes.length)
-                + ", enc=" + contentEncoding + ", type=" + contentType);
+        OkHttpClient client = HTTP_CLIENT_MANAGER.getClient();
 
-        byte[] decompressed = bodyBytes;
-        boolean isGzip = false;
-        try {
-            String encLower = contentEncoding == null ? "" : contentEncoding.toLowerCase(Locale.ROOT);
-            isGzip = encLower.contains("gzip")
-                    || (bodyBytes != null && bodyBytes.length >= 2 && (bodyBytes[0] == (byte)0x1F && bodyBytes[1] == (byte)0x8B));
-        } catch (Exception ignored) {}
+        Request req = requestBuild(url);
+        try (Response resp = client.newCall(req).execute()) {
+            int status = resp.code();
+            byte[] bodyBytes = resp.body() == null ? new byte[0] : resp.body().bytes();
+            String contentEncoding = resp.header("Content-Encoding", "");
+            String contentType = resp.header("Content-Type", "");
 
-        if (isGzip && bodyBytes != null && bodyBytes.length > 0) {
-            try (ByteArrayInputStream bais = new ByteArrayInputStream(bodyBytes);
-                 GZIPInputStream gis = new GZIPInputStream(bais);
-                 ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
-                byte[] buffer = new byte[4096];
-                int read;
-                while ((read = gis.read(buffer)) != -1) {
-                    baos.write(buffer, 0, read);
+            System.out.println("URL: " + url + " -> status=" + status + ", bytes=" + (bodyBytes==null?0:bodyBytes.length)
+                    + ", enc=" + contentEncoding + ", type=" + contentType);
+
+            byte[] decompressed = bodyBytes;
+            boolean isGzip = false;
+            try {
+                String encLower = contentEncoding == null ? "" : contentEncoding.toLowerCase(Locale.ROOT);
+                isGzip = encLower.contains("gzip")
+                        || (bodyBytes != null && bodyBytes.length >= 2 && (bodyBytes[0] == (byte)0x1F && bodyBytes[1] == (byte)0x8B));
+            } catch (Exception ignored) {}
+
+            if (isGzip && bodyBytes != null && bodyBytes.length > 0) {
+                try (ByteArrayInputStream bais = new ByteArrayInputStream(bodyBytes);
+                     GZIPInputStream gis = new GZIPInputStream(bais);
+                     ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
+                    byte[] buffer = new byte[4096];
+                    int read;
+                    while ((read = gis.read(buffer)) != -1) {
+                        baos.write(buffer, 0, read);
+                    }
+                    decompressed = baos.toByteArray();
+                } catch (IOException e) {
+                    System.err.println("GZIP unpack failed for url: " + url);
+                    throw e;
                 }
-                decompressed = baos.toByteArray();
-            } catch (IOException e) {
-                System.err.println("GZIP unpack failed for url: " + url);
-                throw e;
+            } else if (contentEncoding != null && contentEncoding.toLowerCase(Locale.ROOT).contains("br")) {
+                throw new IOException("Received brotli content for url: " + url + " but no decoder configured");
             }
-        } else if (contentEncoding != null && contentEncoding.toLowerCase(Locale.ROOT).contains("br")) {
-            throw new IOException("Received brotli content for url: " + url + " but no decoder configured");
-        }
 
-        String body = decompressed == null ? "" : new String(decompressed, StandardCharsets.UTF_8);
-        return new DecodedResponse(status, body, contentEncoding, contentType);
+            String body = decompressed == null ? "" : new String(decompressed, StandardCharsets.UTF_8);
+            return new DecodedResponse(status, body, contentEncoding, contentType);
+        }
     }
 
-    private static HttpRequest requestBuild(String url) {
+    private static Request requestBuild(String url) {
         String ua = USER_AGENTS.get((int)(Math.random() * USER_AGENTS.size()));
-        return HttpRequest.newBuilder()
-                .uri(URI.create(url))
-                .GET()
-                .timeout(Duration.ofSeconds(15))
+        Request.Builder b = new Request.Builder()
+                .url(url)
+                .get()
                 .header("User-Agent", ua)
                 .header("Accept", "application/json, text/javascript, */*; q=0.01")
                 .header("Accept-Encoding", "gzip, deflate")
                 .header("Accept-Language", "en-US,en;q=0.9")
                 .header("Referer", MAL_HOST + "/")
-                .header("X-Requested-With", "XMLHttpRequest")
-                .build();
+                .header("X-Requested-With", "XMLHttpRequest");
+        return b.build();
     }
 
     public static UserLite fetchRandomUser() throws IOException, InterruptedException {
         DecodedResponse dr = fetchDecoded(API_HOST + "/random/users");
         if (dr.status != 200) throw new HttpRequestException("HTTP " + dr.status);
-        JsonNode data = mapper.readTree(dr.body).get("data");
+        JsonNode root = mapper.readTree(dr.body);
+        JsonNode data = root.get("data");
         return mapper.treeToValue(data, UserLite.class);
     }
 
@@ -270,7 +277,7 @@ public class FetchUsers {
             throws IOException, InterruptedException {
         int offset = 0;
         final int MAX_RETRIES = 3;
-        final long BASE_SLEEP_MS = 500;
+        final long BASE_SLEEP_MS = 2_500;
 
         while (true) {
             String url = "https://myanimelist.net/animelist/" + username + "/load.json?offset=" + offset;
@@ -309,7 +316,7 @@ public class FetchUsers {
 
             if (code == 429) {
                 System.out.println("429 Too Many Requests for " + username + " url=" + url);
-                Thread.sleep(2_000);
+                Thread.sleep(5_000);
                 continue;
             }
 
@@ -327,7 +334,8 @@ public class FetchUsers {
             if (code != 200) {
                 System.out.println("Non-200 for " + username + " url=" + url + " code=" + code);
                 System.out.println("Body (start): " + (body == null ? "null" : body.substring(0, Math.min(1000, body.length()))));
-                return false;
+                Thread.sleep(5_000);
+                continue;
             }
 
             List<UserAnimeEntry> page;

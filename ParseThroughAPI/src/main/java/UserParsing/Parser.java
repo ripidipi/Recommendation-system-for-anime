@@ -3,19 +3,33 @@ package UserParsing;
 import Data.UserStat;
 import Data.Users;
 import Mapper.UserAnimeStatMapper;
-import jakarta.persistence.*;
 import Mapper.UserMapper;
 import Mapper.UserStatMapper;
+import jakarta.persistence.*;
 
 import java.io.IOException;
 
-
 public class Parser {
 
-    private static final EntityManagerFactory emf = Persistence.createEntityManagerFactory("animePU");
+    private static volatile EntityManagerFactory emf;
+
+    public static EntityManagerFactory getEmf() {
+        if (emf == null) {
+            synchronized (Parser.class) {
+                if (emf == null) {
+                    try {
+                        emf = Persistence.createEntityManagerFactory("animePU");
+                    } catch (Exception e) {
+                        throw new RuntimeException("Failed to initialize EntityManagerFactory", e);
+                    }
+                }
+            }
+        }
+        return emf;
+    }
 
     public static void saveUserAndStats(UserLite dto) {
-        EntityManager em = emf.createEntityManager();
+        EntityManager em = getEmf().createEntityManager();
         EntityTransaction tx = em.getTransaction();
 
         try {
@@ -40,7 +54,7 @@ public class Parser {
     }
 
     public static void saveUserAndStats(UserLite dto, StatsData stats) {
-        EntityManager em = emf.createEntityManager();
+        EntityManager em = getEmf().createEntityManager();
         EntityTransaction tx = em.getTransaction();
 
         try {
@@ -61,7 +75,6 @@ public class Parser {
             em.close();
         }
     }
-
 
     private static void AnimeListPersist(UserLite dto, EntityManager em) throws IOException, InterruptedException {
         final int batchSize = 100;
@@ -84,5 +97,4 @@ public class Parser {
             System.out.println("Warning: partial data for user " + dto.username + " (fetch returned false).");
         }
     }
-
 }
