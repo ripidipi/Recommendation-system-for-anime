@@ -27,8 +27,23 @@ import static UserParsing.Parser.saveUserAndStats;
 
 public class FetchUsers {
 
-    private static final String API_HOST = "https://api.jikan.moe/v4";
-    private static final String MAL_HOST = "https://myanimelist.net";
+    private static final String API_HOST;
+    private static final String MAL_HOST;
+
+    static {
+        String apiHost = System.getProperty("jikan.base");
+        if (apiHost == null || apiHost.isBlank()) {
+            apiHost = System.getenv().getOrDefault("JIKAN_BASE", "https://api.jikan.moe/v4");
+        }
+        API_HOST = apiHost;
+
+        String malHost = System.getProperty("mal.base");
+        if (malHost == null || malHost.isBlank()) {
+            malHost = System.getenv().getOrDefault("MAL_HOST", "https://myanimelist.net");
+        }
+        MAL_HOST = malHost;
+    }
+
 
     private static final OkHttpClientManager HTTP_CLIENT_MANAGER = new OkHttpClientManager();
 
@@ -56,7 +71,8 @@ public class FetchUsers {
             "Mozilla/5.0 (X11; Linux x86_64; rv:120.0) Gecko/20100101 Firefox/120.0"
     );
 
-    public static void fetchAndPersistRandomUsers(int numberOfUsers, int numberOfAnimeInLists) {
+    public static void fetchAndPersistRandomUsers(int numberOfUsers, int numberOfAnimeInLists,
+                                                  int numberOfCompletedAnimeInLists) {
         final int MAX_TASK_MS = 120_000;
         final int BETWEEN_TASK_SLEEP_MS = 1_600;
         final int POOL_SIZE = 10;
@@ -94,7 +110,8 @@ public class FetchUsers {
                             System.out.println("No stats for user " + curUser.username);
                             return false;
                         }
-                        if (sd.anime.totalEntries < numberOfAnimeInLists) {
+                        if (sd.anime.totalEntries < numberOfAnimeInLists ||
+                                sd.anime.completed < numberOfCompletedAnimeInLists) {
                             System.out.println("Too few anime for " + curUser.username + ": " + sd.anime.totalEntries);
                             return false;
                         }

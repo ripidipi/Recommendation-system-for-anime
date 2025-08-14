@@ -6,31 +6,33 @@ import static UserParsing.FetchUsers.fetchAndPersistRandomUsers;
 
 public class FetchAndPersist {
 
-    int NUMBER_OF_USERS;
-    int NUMBER_OF_PAGES = -1;
-    int NUMBER_OF_ANIME_IN_LIST;
+    Integer NUMBER_OF_USERS;
+    Integer NUMBER_OF_PAGES;
+    Integer NUMBER_OF_ANIME_IN_LIST;
+    Integer NUMBER_OF_COMPLETED_ANIME_IN_LIST = 0;
 
-    public FetchAndPersist(int numberOfUsers, int numberOfAnimeInLists) {
-        NUMBER_OF_USERS = numberOfUsers;
-        NUMBER_OF_ANIME_IN_LIST = numberOfAnimeInLists;
-    }
-
-    public FetchAndPersist(int numberOfUsers, int numberOfAnimeInLists, int numberOfPages) {
+    public FetchAndPersist(int numberOfUsers, int numberOfAnimeInLists,
+                           Integer numberOfPages, int numberOfCompletedAnimeInLists) {
         NUMBER_OF_USERS = numberOfUsers;
         NUMBER_OF_ANIME_IN_LIST = numberOfAnimeInLists;
         NUMBER_OF_PAGES = numberOfPages;
+        NUMBER_OF_COMPLETED_ANIME_IN_LIST = numberOfCompletedAnimeInLists;
     }
 
     public void fillUserDB() {
-        fetchAndPersistRandomUsers(NUMBER_OF_USERS, NUMBER_OF_ANIME_IN_LIST);
+        System.out.println("FetchAndPersist.fillUserDB: users=" + NUMBER_OF_USERS + ", minAnimeInLists=" + NUMBER_OF_ANIME_IN_LIST);
+        fetchAndPersistRandomUsers(NUMBER_OF_USERS, NUMBER_OF_ANIME_IN_LIST, NUMBER_OF_COMPLETED_ANIME_IN_LIST);
     }
 
     public void fillAnimeDB() {
         int numberOfPage;
-        if (NUMBER_OF_PAGES == -1)
+        if (NUMBER_OF_PAGES == null) {
             numberOfPage = countPages();
-        else
+            System.out.println("FetchAndPersist.fillAnimeDB: countPages() -> " + numberOfPage);
+        } else {
             numberOfPage = NUMBER_OF_PAGES;
+            System.out.println("FetchAndPersist.fillAnimeDB: using NUMBER_OF_PAGES -> " + numberOfPage);
+        }
         fetchAndPersistAnime(numberOfPage);
     }
 
