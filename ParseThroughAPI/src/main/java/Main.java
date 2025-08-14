@@ -6,11 +6,11 @@ import UserParsing.FetchUsers;
 public class Main {
 
     public static void main(String[] args) {
-        FetchAndPersist fetching = new FetchAndPersist(100, 50);
+        FetchAndPersist fetching = new FetchAndPersist(1_000, 50);
         // fetching.fillAnimeDB();
-        // fetching.fillUserDB();
-        DataIntegrityRestorer dataIntegrityRestorer = new DataIntegrityRestorer(8, 100);
-        dataIntegrityRestorer.run();
+        fetching.fillUserDB();
+//        DataIntegrityRestorer dataIntegrityRestorer = new DataIntegrityRestorer(0.10, 100, 100);
+//        dataIntegrityRestorer.run();
     }
 
 }

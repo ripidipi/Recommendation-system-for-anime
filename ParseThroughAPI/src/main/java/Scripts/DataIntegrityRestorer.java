@@ -1,12 +1,14 @@
 package Scripts;
 
-import Data.Users;
 import Data.UserStat;
+import Data.Users;
+import Mapper.UserStatMapper;
 import UserParsing.FetchUsers;
 import UserParsing.Parser;
 import UserParsing.StatsData;
-import UserParsing.UserLite;
-import jakarta.persistence.*;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.EntityManagerFactory;
+import jakarta.persistence.EntityTransaction;
 
 import java.util.List;
 
@@ -15,11 +17,13 @@ public class DataIntegrityRestorer {
     private final EntityManagerFactory emf;
     private final double thresholdPercent;
     private final int batchSize;
+    private final UserResyncService resyncService;
 
-    public DataIntegrityRestorer(double thresholdPercent, int batchSize) {
+    public DataIntegrityRestorer(double thresholdPercent, int batchSize, int resyncPersistBatchSize) {
         this.emf = Parser.getEmf();
         this.thresholdPercent = thresholdPercent;
         this.batchSize = batchSize;
+        this.resyncService = new UserResyncService(resyncPersistBatchSize);
     }
 
     public void run() {
@@ -37,7 +41,8 @@ public class DataIntegrityRestorer {
                     try {
                         processUser(user.getMalId());
                     } catch (Exception ex) {
-                        System.out.println("Error processing user " + user.getMalId() + " (" + user.getUsername() + "): " + ex);
+                        System.out.println("Error processing user " + user.getMalId() +
+                                " (" + user.getUsername() + "): " + ex);
                         ex.printStackTrace();
                     }
                 }
@@ -54,27 +59,15 @@ public class DataIntegrityRestorer {
         if (malId == null) return;
 
         EntityManager em = emf.createEntityManager();
-        EntityTransaction tx = em.getTransaction();
-
         try {
-            tx.begin();
+            em.getTransaction().begin();
 
             Users user = em.find(Users.class, malId);
             if (user == null) {
                 System.out.println("User with malId=" + malId + " not found, skipping.");
-                tx.commit();
+                em.getTransaction().commit();
                 return;
             }
-
-            Long countByField = em.createQuery(
-                            "SELECT COUNT(uas) FROM UserAnimeStat uas WHERE uas.userId = :uid", Long.class)
-                    .setParameter("uid", malId)
-                    .getSingleResult();
-
-            Long countByAssoc = em.createQuery(
-                            "SELECT COUNT(uas) FROM UserAnimeStat uas WHERE uas.user = :user", Long.class)
-                    .setParameter("user", user)
-                    .getSingleResult();
 
             Number nativeCountNum = (Number) em.createNativeQuery(
                             "SELECT COUNT(*) FROM user_anime_stat WHERE user_id = ?1")
@@ -82,24 +75,20 @@ public class DataIntegrityRestorer {
                     .getSingleResult();
             long countNative = nativeCountNum == null ? 0L : nativeCountNum.longValue();
 
-            UserStat stat = em.createQuery("SELECT s FROM UserStat s WHERE s.user = :u", UserStat.class)
+            UserStat stat = em.createQuery(
+                    "SELECT s FROM UserStat s WHERE s.user = :u", UserStat.class)
                     .setParameter("u", user)
                     .getResultStream()
                     .findFirst()
                     .orElse(null);
             int reported = stat != null ? stat.getTotalEntries() : 0;
 
-            tx.commit();
+            em.getTransaction().commit();
 
-            System.out.printf("User %s (malId=%d): dbFieldCount=%d, assocCount=%d, nativeCount=%d, reported=%d%n",
-                    user.getUsername(), malId,
-                    countByField == null ? 0L : countByField,
-                    countByAssoc == null ? 0L : countByAssoc,
-                    countNative,
-                    reported);
+            System.out.printf("User %s (malId=%d): nativeCount=%d, reported=%d%n",
+                    user.getUsername(), malId, countNative, reported);
 
             long dbCount = countNative;
-
             double diffPercent;
             if (reported == 0) {
                 diffPercent = dbCount > 0 ? 1.0 : 0.0;
@@ -108,42 +97,66 @@ public class DataIntegrityRestorer {
             }
 
             if (diffPercent > thresholdPercent) {
-                System.out.println("MISMATCH (diff=" + (diffPercent * 100) + "%). Refreshing full user data: " + user.getUsername());
-                refreshFull(user.getUsername());
+                System.out.println("MISMATCH (diff=" + (diffPercent * 100) +
+                        "%). Starting resync for " + user.getUsername());
+                boolean resyncOk = resyncService.resyncUserUpsertFetchWithRetries(user.getUsername(),
+                        malId, 3, 500);
+                if (!resyncOk) {
+                    System.out.println("Resync failed for " + user.getUsername() + ". Skipping update.");
+                    return;
+                }
+                System.out.println("Resync succeeded for " + user.getUsername() +
+                        ". Now updating UserStat.totalEntries from remote stats.");
+
+                try {
+                    StatsData freshStats = FetchUsers.fetchUserStats(user.getUsername());
+                    if (freshStats != null) {
+                        EntityManager em2 = emf.createEntityManager();
+                        EntityTransaction tx2 = em2.getTransaction();
+                        try {
+                            tx2.begin();
+                            Users mergedUser = em2.find(Users.class, malId);
+                            var userStat = UserStatMapper.mapOrCreate(freshStats, mergedUser, em2);
+                            em2.merge(userStat);
+                            tx2.commit();
+                            System.out.println("UserStat updated for " + user.getUsername());
+                        } catch (Exception e) {
+                            if (tx2.isActive()) tx2.rollback();
+                            System.out.println("Failed to update UserStat for " +
+                                    user.getUsername() + ": " + e.getMessage());
+                            e.printStackTrace();
+                        } finally {
+                            em2.close();
+                        }
+                    } else {
+                        System.out.println("Could not fetch remote stats to update user_stat for " +
+                                user.getUsername());
+                    }
+                } catch (Exception e) {
+                    System.out.println("Error fetching remote stats after resync for " +
+                            user.getUsername() + ": " + e.getMessage());
+                    e.printStackTrace();
+                }
                 return;
             }
 
             boolean missing = user.getUrl() == null;
             if (missing) {
-                System.out.println("Missing profile fields for user " + user.getUsername() + ", updating profile only.");
+                System.out.println("Missing profile fields for user " +
+                        user.getUsername() + ", updating profile only.");
                 refreshProfileOnly(user.getUsername());
-            } else {}
+            }
 
-        } catch (Exception ex) {
-            if (tx.isActive()) tx.rollback();
-            throw ex;
         } finally {
-            if (tx.isActive()) tx.rollback();
+            if (em.getTransaction().isActive()) em.getTransaction().rollback();
             em.close();
-        }
-    }
-
-    private void refreshFull(String username) {
-        try {
-            UserLite dto = FetchUsers.fetchUserByUsername(username);
-            StatsData stats = FetchUsers.fetchUserStats(dto.username);
-            UserParsing.Parser.saveUserAndStats(dto, stats);
-            System.out.println("Refreshed full data for " + username);
-        } catch (Exception e) {
-            System.out.println("Failed full refresh for " + username + ": " + e);
-            e.printStackTrace();
         }
     }
 
     private void refreshProfileOnly(String username) {
         try {
-            UserLite dto = FetchUsers.fetchUserByUsername(username);
-            StatsData stats = FetchUsers.fetchUserStats(dto.username);
+            UserParsing.UserLite dto = FetchUsers.fetchUserByUsername(username);
+            UserParsing.StatsData stats = FetchUsers.fetchUserStats(dto.username);
             EntityManager em = emf.createEntityManager();
             EntityTransaction tx = em.getTransaction();
             try {
