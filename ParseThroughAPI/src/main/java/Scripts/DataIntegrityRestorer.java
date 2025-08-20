@@ -18,12 +18,18 @@ public class DataIntegrityRestorer {
     private final double thresholdPercent;
     private final int batchSize;
     private final UserResyncService resyncService;
+    private final boolean deleteOnFailure;
 
     public DataIntegrityRestorer(double thresholdPercent, int batchSize, int resyncPersistBatchSize) {
+        this(thresholdPercent, batchSize, resyncPersistBatchSize, true);
+    }
+
+    public DataIntegrityRestorer(double thresholdPercent, int batchSize, int resyncPersistBatchSize, boolean deleteOnFailure) {
         this.emf = Parser.getEmf();
         this.thresholdPercent = thresholdPercent;
         this.batchSize = batchSize;
         this.resyncService = new UserResyncService(resyncPersistBatchSize);
+        this.deleteOnFailure = deleteOnFailure;
     }
 
     public void run() {
@@ -76,7 +82,7 @@ public class DataIntegrityRestorer {
             long countNative = nativeCountNum == null ? 0L : nativeCountNum.longValue();
 
             UserStat stat = em.createQuery(
-                    "SELECT s FROM UserStat s WHERE s.user = :u", UserStat.class)
+                            "SELECT s FROM UserStat s WHERE s.user = :u", UserStat.class)
                     .setParameter("u", user)
                     .getResultStream()
                     .findFirst()
@@ -102,7 +108,18 @@ public class DataIntegrityRestorer {
                 boolean resyncOk = resyncService.resyncUserUpsertFetchWithRetries(user.getUsername(),
                         malId, 3, 500);
                 if (!resyncOk) {
-                    System.out.println("Resync failed for " + user.getUsername() + ". Skipping update.");
+                    System.out.println("Resync failed for " + user.getUsername() + ".");
+                    if (deleteOnFailure) {
+                        System.out.println("deleteOnFailure is enabled — deleting user data for malId=" + malId);
+                        try {
+                            resyncService.deleteUserData(malId);
+                        } catch (Exception e) {
+                            System.out.println("Failed to delete data after resync failure for " + malId + ": " + e.getMessage());
+                            e.printStackTrace();
+                        }
+                    } else {
+                        System.out.println("deleteOnFailure is disabled — keeping existing data for " + user.getUsername());
+                    }
                     return;
                 }
                 System.out.println("Resync succeeded for " + user.getUsername() +
@@ -125,17 +142,38 @@ public class DataIntegrityRestorer {
                             System.out.println("Failed to update UserStat for " +
                                     user.getUsername() + ": " + e.getMessage());
                             e.printStackTrace();
+                            if (deleteOnFailure) {
+                                System.out.println("deleteOnFailure is enabled — deleting user data due to failed UserStat update for malId=" + malId);
+                                try { resyncService.deleteUserData(malId); } catch (Exception ex) {
+                                    System.out.println("Failed to delete data after UserStat update failure for " + malId + ": " + ex.getMessage());
+                                    ex.printStackTrace();
+                                }
+                            }
                         } finally {
                             em2.close();
                         }
                     } else {
                         System.out.println("Could not fetch remote stats to update user_stat for " +
                                 user.getUsername());
+                        if (deleteOnFailure) {
+                            System.out.println("deleteOnFailure is enabled — deleting user data because fresh stats couldn't be fetched for malId=" + malId);
+                            try { resyncService.deleteUserData(malId); } catch (Exception ex) {
+                                System.out.println("Failed to delete data after missing fresh stats for " + malId + ": " + ex.getMessage());
+                                ex.printStackTrace();
+                            }
+                        }
                     }
                 } catch (Exception e) {
                     System.out.println("Error fetching remote stats after resync for " +
                             user.getUsername() + ": " + e.getMessage());
                     e.printStackTrace();
+                    if (deleteOnFailure) {
+                        System.out.println("deleteOnFailure is enabled — deleting user data due to exception when fetching fresh stats for malId=" + malId);
+                        try { resyncService.deleteUserData(malId); } catch (Exception ex) {
+                            System.out.println("Failed to delete data after exception fetching fresh stats for " + malId + ": " + ex.getMessage());
+                            ex.printStackTrace();
+                        }
+                    }
                 }
                 return;
             }

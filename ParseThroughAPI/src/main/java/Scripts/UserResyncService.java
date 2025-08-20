@@ -126,14 +126,38 @@ public class UserResyncService {
         return false;
     }
 
+    public void deleteUserData(int malId) {
+        EntityManager em = emf.createEntityManager();
+        EntityTransaction tx = em.getTransaction();
+        try {
+            tx.begin();
+            int deletedAnime = em.createNativeQuery("DELETE FROM user_anime_stat WHERE user_id = ?1")
+                    .setParameter(1, malId)
+                    .executeUpdate();
+            int deletedStat = em.createNativeQuery("DELETE FROM user_stat WHERE user_id = ?1")
+                    .setParameter(1, malId)
+                    .executeUpdate();
+            int deletedUsers = em.createNativeQuery("DELETE FROM users WHERE mal_id = ?1")
+                    .setParameter(1, malId)
+                    .executeUpdate();
+            tx.commit();
+            System.out.println("Deleted user data for malId=" + malId + ": anime=" + deletedAnime + ", stat=" + deletedStat + ", users=" + deletedUsers);
+        } catch (Exception e) {
+            if (tx.isActive()) tx.rollback();
+            System.out.println("Failed to delete user data for malId=" + malId + ": " + e.getMessage());
+            throw e;
+        } finally {
+            em.close();
+        }
+    }
+
     private void logFailed(String username, int malId, String status, String reason) {
         String fn = "resync_failed.csv";
         try (FileWriter fw = new FileWriter(fn, true); PrintWriter pw = new PrintWriter(fw)) {
-            pw.printf("%s,%s,%d,%s,%s%n", Instant.now().toString(), username, malId, status,
-                    reason.replaceAll("[\\r\\n,]", "_"));
+            pw.printf("%s,%s,%d,%s,%s%n", Instant.now().toString(), username, malId,
+                    status, reason.replaceAll("[\\r\\n,]", "_"));
         } catch (Exception e) {
             System.out.println("Failed to write resync_failed.csv: " + e.getMessage());
         }
     }
-
 }
