@@ -13,11 +13,11 @@ public class Main {
                 System.getenv().getOrDefault("DB_PASS", "sylphi_pants"));
 
         boolean fetchOnlyUsersAndStats = Boolean.parseBoolean(System.getenv().getOrDefault(
-                "FETCH_ONLY_USERS_AND_STATS", "TRUE"));
+                "FETCH_ONLY_USERS_AND_STATS", "FALSE"));
         boolean fetchOnlyAnimeList = Boolean.parseBoolean(System.getenv().getOrDefault(
                 "FETCH_ONLY_ANIME_LIST", "FALSE"));
         boolean runFullRestoringDataIntegrity = Boolean.parseBoolean(System.getenv().getOrDefault(
-                "RUN_FULL_RESTORING_DATA_INTEGRITY", "FALSE"));
+                "RUN_FULL_RESTORING_DATA_INTEGRITY", "TRUE"));
 
         String pagesEnv = System.getenv().getOrDefault("NUMBER_OF_PAGE_FROM_ANIME_TOP", "null");
         Integer numberOfPages = null;
@@ -62,15 +62,10 @@ public class Main {
             System.out.println("Anime parsing finished.");
             return;
         }
-
         if (fetchOnlyUsersAndStats) {
             System.out.println("Run fetching users and stats");
             fetching.fillUserDB();
             System.out.println("Users parsing finished.");
-        } else {
-            System.out.println("Rum full pipeline (anime -> users -> restore)");
-            fetching.fillAnimeDB();
-            fetching.fillUserDB();
         }
         if (runFullRestoringDataIntegrity) {
             System.out.println("Run restoring data integrity (DataIntegrityRestorer)");
@@ -79,6 +74,6 @@ public class Main {
             dataIntegrityRestorer.run();
         }
 
-        System.out.println("Done.");
+        System.out.println("Done");
     }
 }
