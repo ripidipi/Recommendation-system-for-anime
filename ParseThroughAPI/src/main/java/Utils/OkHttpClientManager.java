@@ -38,12 +38,6 @@ public class OkHttpClientManager {
         return client;
     }
 
-    public void forceRecreate() {
-        synchronized (lock) {
-            createNewClient();
-        }
-    }
-
     private void createNewClient() {
         OkHttpClient oldClient = this.client;
         ExecutorService oldExec = this.dispatcherExecutor;
@@ -83,32 +77,6 @@ public class OkHttpClientManager {
                 Thread.currentThread().interrupt();
             } catch (Exception ex) {
                 System.err.println("OkHttpClientManager: error shutting down old exec: " + ex);
-            }
-        }
-    }
-
-    public void shutdown() {
-        synchronized (lock) {
-            OkHttpClient old = client;
-            ExecutorService oldExec = dispatcherExecutor;
-            ConnectionPool oldPool = connectionPool;
-            client = null;
-            dispatcherExecutor = null;
-            connectionPool = null;
-
-            if (oldPool != null) {
-                try { oldPool.evictAll(); } catch (Exception ignored) {}
-            }
-
-            if (oldExec != null) {
-                try {
-                    oldExec.shutdownNow();
-                    oldExec.awaitTermination(AWAIT_TERMINATION_MS, TimeUnit.MILLISECONDS);
-                } catch (InterruptedException ie) {
-                    Thread.currentThread().interrupt();
-                } catch (Exception ex) {
-                    System.err.println("OkHttpClientManager.shutdown error: " + ex);
-                }
             }
         }
     }

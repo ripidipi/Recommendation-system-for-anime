@@ -57,7 +57,7 @@ public class UserResyncService {
                     if (reported > 0 && collected.size() == 0) {
                         String reason = "reported>0 but collected==0 (private/blocked)";
                         logFailed(username, malId, "manual_review", reason);
-                        System.out.println("WARN: " + reason + " for " + username + ". Aborting upsert.");
+                        System.out.println("WARN: " + reason + " for " + username + ". Aborting upsert");
                         return false;
                     }
                     if (reported > 0) {
@@ -66,7 +66,7 @@ public class UserResyncService {
                             String reason = String.format("collected only %d%% of reported (%.2f%%)",
                                     (int)(ratio*100), ratio*100.0);
                             logFailed(username, malId, "manual_review", reason);
-                            System.out.println("WARN: " + reason + " for " + username + ". Aborting upsert.");
+                            System.out.println("WARN: " + reason + " for " + username + ". Aborting upsert");
                             return false;
                         }
                     }

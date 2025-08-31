@@ -70,7 +70,7 @@ public class DataIntegrityRestorer {
 
             Users user = em.find(Users.class, malId);
             if (user == null) {
-                System.out.println("User with malId=" + malId + " not found, skipping.");
+                System.out.println("User with malId=" + malId + " not found, skipping");
                 em.getTransaction().commit();
                 return;
             }
@@ -123,7 +123,7 @@ public class DataIntegrityRestorer {
                     return;
                 }
                 System.out.println("Resync succeeded for " + user.getUsername() +
-                        ". Now updating UserStat.totalEntries from remote stats.");
+                        "Now updating UserStat.totalEntries from remote stats");
 
                 try {
                     StatsData freshStats = FetchUsers.fetchUserStats(user.getUsername());

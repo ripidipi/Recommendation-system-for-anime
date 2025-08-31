@@ -13,11 +13,11 @@ public class Main {
                 System.getenv().getOrDefault("DB_PASS", "sylphi_pants"));
 
         boolean fetchOnlyUsersAndStats = Boolean.parseBoolean(System.getenv().getOrDefault(
-                "FETCH_ONLY_USERS_AND_STATS", "FALSE"));
+                "FETCH_ONLY_USERS_AND_STATS", "TRUE"));
         boolean fetchOnlyAnimeList = Boolean.parseBoolean(System.getenv().getOrDefault(
                 "FETCH_ONLY_ANIME_LIST", "FALSE"));
         boolean runFullRestoringDataIntegrity = Boolean.parseBoolean(System.getenv().getOrDefault(
-                "RUN_FULL_RESTORING_DATA_INTEGRITY", "TRUE"));
+                "RUN_FULL_RESTORING_DATA_INTEGRITY", "FALSE"));
 
         String pagesEnv = System.getenv().getOrDefault("NUMBER_OF_PAGE_FROM_ANIME_TOP", "null");
         Integer numberOfPages = null;
