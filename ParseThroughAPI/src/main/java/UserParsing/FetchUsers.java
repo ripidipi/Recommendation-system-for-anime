@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.zip.GZIPInputStream;
 
 import static UserParsing.Parser.saveUserAndStats;
@@ -54,7 +55,6 @@ public class FetchUsers {
             .findAndRegisterModules();
 
     private static final List<String> USER_AGENTS = List.of(
-            // desktop
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
                     "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:120.0) Gecko/20100101 Firefox/120.0",
@@ -62,16 +62,18 @@ public class FetchUsers {
                     "(KHTML, like Gecko) Version/16.6 Safari/605.1.15",
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
                     "(KHTML, like Gecko) Edg/120.0.0.0",
-            // mobile
             "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 " +
                     "(KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/605.1.15",
             "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 " +
                     "(KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
-            // linux headless / less common
             "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 " +
                     "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
             "Mozilla/5.0 (X11; Linux x86_64; rv:120.0) Gecko/20100101 Firefox/120.0"
     );
+
+    private static final SimpleRateLimiter MAL_RATE_LIMITER = new SimpleRateLimiter(1000, 800);
+    private static final ConcurrentHashMap<String, Long> taintedHosts = new ConcurrentHashMap<>();
+    private static final long TAINT_MILLIS = Duration.ofMinutes(2).toMillis();
 
     public static void fetchAndPersistRandomUsers(int numberOfUsers, int numberOfAnimeInLists,
                                                   int numberOfCompletedAnimeInLists) {
@@ -173,8 +175,8 @@ public class FetchUsers {
                             int done = successCount.incrementAndGet();
                             if (done % 25 == 0) System.out.println(
                                     "<<<-------------------------->>>\n" +
-                                    "Completed users: " + done + "/" + numberOfUsers +
-                                    "\n<<<-------------------------->>>");
+                                            "Completed users: " + done + "/" + numberOfUsers +
+                                            "\n<<<-------------------------->>>");
                         }
                     } finally {
                         canceller.cancel(false);
@@ -215,6 +217,17 @@ public class FetchUsers {
     private record DecodedResponse(int status, String body, String contentEncoding, String contentType) { }
 
     private static DecodedResponse fetchDecoded(String url) throws IOException, InterruptedException {
+        String hostKey = url.contains("myanimelist.net") ? "myanimelist.net" : url;
+
+        Long until = taintedHosts.get(hostKey);
+        if (until != null && System.currentTimeMillis() < until) {
+            throw new IOException("Host " + hostKey + " is tainted until " + until);
+        }
+
+        if (url.contains("myanimelist.net")) {
+            MAL_RATE_LIMITER.acquire();
+        }
+
         OkHttpClient client = HTTP_CLIENT_MANAGER.getClient();
 
         Request req = requestBuild(url);
@@ -254,6 +267,14 @@ public class FetchUsers {
             }
 
             String body = decompressed == null ? "" : new String(decompressed, StandardCharsets.UTF_8);
+
+            String low = body.toLowerCase(Locale.ROOT);
+            if (low.contains("human verification") || low.contains("gokuprops") || low.contains("awswaf") || low.contains("recaptcha")) {
+                taintedHosts.put(hostKey, System.currentTimeMillis() + TAINT_MILLIS);
+                System.out.println("capcha " + hostKey + ", tainting for " + (TAINT_MILLIS/1000) + " minutes");
+                throw new IOException("Verification detected for host: " + hostKey);
+            }
+
             return new DecodedResponse(status, body, contentEncoding, contentType);
         }
     }
@@ -267,7 +288,7 @@ public class FetchUsers {
                 .header("Accept", "application/json, text/javascript, */*; q=0.01")
                 .header("Accept-Encoding", "gzip, deflate")
                 .header("Accept-Language", "en-US,en;q=0.9")
-                .header("Referer", MAL_HOST + "/")
+                .header("Referer", MAL_HOST + "/animelist/")
                 .header("X-Requested-With", "XMLHttpRequest");
         return b.build();
     }
@@ -315,7 +336,7 @@ public class FetchUsers {
                 } catch (IOException ioe) {
                     lastIo = ioe;
                     long sleep = BASE_SLEEP_MS * attempt;
-                    System.out.println("Network/IO error for " + url);
+                    System.out.println("Network/IO error for " + url + " -> " + ioe.getMessage());
                     Thread.sleep(sleep);
                 }
             }
@@ -356,7 +377,7 @@ public class FetchUsers {
             if (code != 200) {
                 System.out.println("Non-200 for " + username + " url=" + url + " code=" + code);
                 System.out.println("Body (start): " + (body == null ? "null" : body.substring(0, Math.min(1000, body.length()))));
-                Thread.sleep(5_000);
+                Thread.sleep(7_000);
                 continue;
             }
 
@@ -376,6 +397,33 @@ public class FetchUsers {
             offset += page.size();
 
             Thread.sleep(BASE_SLEEP_MS);
+        }
+    }
+
+    private static final class SimpleRateLimiter {
+        private final long minDelayMs;
+        private final long maxJitterMs;
+        private long lastCall = 0;
+
+        SimpleRateLimiter(long minDelayMs, long maxJitterMs) {
+            this.minDelayMs = minDelayMs;
+            this.maxJitterMs = maxJitterMs;
+        }
+
+        void acquire() {
+            synchronized (this) {
+                long now = System.currentTimeMillis();
+                long wait = Math.max(0, minDelayMs - (now - lastCall));
+                if (wait > 0) {
+                    try {
+                        long jitter = ThreadLocalRandom.current().nextLong(maxJitterMs + 1);
+                        Thread.sleep(wait + jitter);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
+                }
+                lastCall = System.currentTimeMillis();
+            }
         }
     }
 }
