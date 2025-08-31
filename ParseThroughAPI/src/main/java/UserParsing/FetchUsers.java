@@ -1,6 +1,8 @@
 package UserParsing;
 
 import Exeptions.HttpRequestException;
+import Scripts.DataIntegrityRestorer;
+import Scripts.UserResyncService;
 import Utils.OkHttpClientManager;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -82,6 +84,8 @@ public class FetchUsers {
         Semaphore concurrencyLimiter = new Semaphore(POOL_SIZE);
         AtomicInteger successCount = new AtomicInteger(0);
         AtomicInteger attempts = new AtomicInteger(0);
+        DataIntegrityRestorer dataIntegrityRestorer = new DataIntegrityRestorer(0.05,
+                100, 100);
 
         try {
             while (successCount.get() < numberOfUsers) {
@@ -110,13 +114,14 @@ public class FetchUsers {
                             System.out.println("No stats for user " + curUser.username);
                             return false;
                         }
-                        if (sd.anime.totalEntries < numberOfAnimeInLists ||
+                        if (sd.anime.totalEntries < numberOfAnimeInLists &&
                                 sd.anime.completed < numberOfCompletedAnimeInLists) {
                             System.out.println("Too few anime for " + curUser.username + ": " + sd.anime.totalEntries);
                             return false;
                         }
 
                         saveUserAndStats(curUser, sd);
+                        dataIntegrityRestorer.processUser(curUser.malId);
 
                         try { Thread.sleep(BETWEEN_TASK_SLEEP_MS); } catch (InterruptedException ie) {
                             Thread.currentThread().interrupt();
