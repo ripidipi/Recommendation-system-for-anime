@@ -356,7 +356,7 @@ public class FetchUsers {
             if (code != 200) {
                 System.out.println("Non-200 for " + username + " url=" + url + " code=" + code);
                 System.out.println("Body (start): " + (body == null ? "null" : body.substring(0, Math.min(1000, body.length()))));
-                Thread.sleep(5_000);
+                Thread.sleep(7_000);
                 continue;
             }
 
