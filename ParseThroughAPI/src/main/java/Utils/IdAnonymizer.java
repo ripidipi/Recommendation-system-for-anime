@@ -1,33 +1,45 @@
 package Utils;
 
+import javax.crypto.KeyGenerator;
 import javax.crypto.Mac;
+import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
-import java.nio.charset.StandardCharsets;
-import java.util.*;
+import java.security.SecureRandom;
+import java.util.Arrays;
+import java.util.Base64;
 
 public class IdAnonymizer {
-    private static final String HMAC_SHA256 = "HmacSHA256";
-    private final String SECRET_KEY;
+    private static final byte[] SECRET_KEY = loadSecretKey();
 
-    IdAnonymizer() {
-        SECRET_KEY = RandomKeyGeneration.getKey(2048);
+    private static byte[] loadSecretKey() {
+        String envKey = generateHmacKey();
+        if (envKey != null) return envKey.getBytes();
+
+        byte[] key = new byte[32];
+        new SecureRandom().nextBytes(key);
+        return key;
     }
 
-    public String anonymizeId(Integer originalId) throws Exception {
-        if (SECRET_KEY == null || SECRET_KEY.isEmpty()) {
-            throw new IllegalArgumentException("HASH_SECRET_KEY environment variable is not set");
+    public static String anonymizeId(int originalId) {
+        try {
+            System.out.println(Arrays.toString(SECRET_KEY));
+            Mac mac = Mac.getInstance("HmacSHA256");
+            mac.init(new SecretKeySpec(SECRET_KEY, "HmacSHA256"));
+            return Base64.getUrlEncoder().withoutPadding()
+                    .encodeToString(mac.doFinal(String.valueOf(originalId).getBytes()));
+        } catch (Exception e) {
+            throw new RuntimeException("Error ananymization ", e);
         }
+    }
 
-        SecretKeySpec keySpec = new SecretKeySpec(
-                SECRET_KEY.getBytes(StandardCharsets.UTF_8),
-                HMAC_SHA256
-        );
-
-        Mac mac = Mac.getInstance(HMAC_SHA256);
-        mac.init(keySpec);
-
-        byte[] hash = mac.doFinal(originalId.toString().getBytes(StandardCharsets.UTF_8));
-        return Base64.getEncoder().encodeToString(hash);
+    public static String generateHmacKey() {
+        try {
+            KeyGenerator kg = KeyGenerator.getInstance("HmacSHA256");
+            SecretKey key = kg.generateKey();
+            return Base64.getEncoder().encodeToString(key.getEncoded());
+        } catch (Exception e) {
+            throw new RuntimeException("Error key generation ", e);
+        }
     }
 
 }
