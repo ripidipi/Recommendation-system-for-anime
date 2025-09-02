@@ -11,8 +11,8 @@ public class FetchAndPersist {
     Integer NUMBER_OF_ANIME_IN_LIST;
     Integer NUMBER_OF_COMPLETED_ANIME_IN_LIST = 0;
 
-    public FetchAndPersist(int numberOfUsers, int numberOfAnimeInLists,
-                           Integer numberOfPages, int numberOfCompletedAnimeInLists) {
+    public FetchAndPersist(Integer numberOfUsers, Integer numberOfAnimeInLists,
+                           Integer numberOfPages, Integer numberOfCompletedAnimeInLists) {
         NUMBER_OF_USERS = numberOfUsers;
         NUMBER_OF_ANIME_IN_LIST = numberOfAnimeInLists;
         NUMBER_OF_PAGES = numberOfPages;

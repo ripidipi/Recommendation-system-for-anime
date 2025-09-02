@@ -39,7 +39,7 @@ public class SimpleDataExtract implements AutoCloseable {
 
     public void streamQuery(String sql, List<Object> params, RowConsumer consumer) throws Exception {
         try (Connection conn = ds.getConnection()) {
-            conn.setAutoCommit(false); // важно для cursor-based streaming в Postgres
+            conn.setAutoCommit(false);
             try (PreparedStatement ps = conn.prepareStatement(sql, ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY)) {
                 ps.setFetchSize(fetchSize);
                 setParams(ps, params);
@@ -50,13 +50,12 @@ public class SimpleDataExtract implements AutoCloseable {
         }
     }
 
-    /**
-     * Экспорт произвольного запроса в Parquet. Схема строится автоматически из ResultSetMetaData
-     * (каждое поле становится union [null, type]).
-     *
-     * TIMESTAMP/DATE поля сохраняются как ISO-строки.
-     */
-    public void exportQueryToParquet(String sql, List<Object> params, File outFile) throws Exception {
+    public void exportQueryToParquet(
+            String sql,
+            List<Object> params,
+            File outFile,
+            Set<String> fieldsToAnonymize) throws Exception {
+
         try (Connection conn = ds.getConnection()) {
             conn.setAutoCommit(false);
             try (PreparedStatement ps = conn.prepareStatement(sql, ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY)) {
@@ -81,7 +80,14 @@ public class SimpleDataExtract implements AutoCloseable {
                                 String name = md.getColumnLabel(c);
                                 int sqlType = md.getColumnType(c);
                                 Object val = readTypedValue(rs, c, sqlType);
-                                // Avro expects null for missing values; GenericRecord.put handles it
+
+                                if (fieldsToAnonymize != null && fieldsToAnonymize.contains(name)) {
+                                    if (val instanceof Integer || val instanceof Long) {
+                                        long id = ((Number) val).longValue();
+                                        val = IdAnonymizer.anonymizeId(id);
+                                    }
+                                }
+
                                 rec.put(name, val);
                             }
                             writer.write(rec);
@@ -92,7 +98,7 @@ public class SimpleDataExtract implements AutoCloseable {
         }
     }
 
-    /** Построение Avro schema программно из ResultSetMetaData (каждое поле = ["null", baseType]) */
+
     private static Schema buildSchemaFromMeta(ResultSetMetaData md) throws SQLException {
         String recordName = "Row";
         Schema record = Schema.createRecord(recordName, null, null, false);
@@ -102,7 +108,6 @@ public class SimpleDataExtract implements AutoCloseable {
             String name = md.getColumnLabel(i);
             int sqlType = md.getColumnType(i);
             Schema base = sqlTypeToAvroSchema(sqlType);
-            // union [null, base]
             List<Schema> union = Arrays.asList(Schema.create(Schema.Type.NULL), base);
             Schema unionSchema = Schema.createUnion(union);
             Schema.Field f = new Schema.Field(name, unionSchema, null, Schema.Field.NULL_DEFAULT_VALUE);
@@ -112,7 +117,6 @@ public class SimpleDataExtract implements AutoCloseable {
         return record;
     }
 
-    /** Маппинг SQL -> Avro Schema (скалярные типы) */
     private static Schema sqlTypeToAvroSchema(int sqlType) {
         switch (sqlType) {
             case Types.INTEGER:
@@ -138,7 +142,6 @@ public class SimpleDataExtract implements AutoCloseable {
         }
     }
 
-    /** Читает значение из ResultSet и возвращает объект, который Avro/Parquet корректно примет. */
     private static Object readTypedValue(ResultSet rs, int colIndex, int sqlType) throws SQLException {
         switch (sqlType) {
             case Types.INTEGER:

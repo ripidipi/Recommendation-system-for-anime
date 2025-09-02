@@ -20,7 +20,7 @@ public class IdAnonymizer {
         return key;
     }
 
-    public static String anonymizeId(int originalId) {
+    public static String anonymizeId(long originalId) {
         try {
             System.out.println(Arrays.toString(SECRET_KEY));
             Mac mac = Mac.getInstance("HmacSHA256");
