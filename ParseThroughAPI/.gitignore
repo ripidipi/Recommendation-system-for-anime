@@ -39,3 +39,6 @@ build/
 
 ### Log ###
 resync_failed.csv
+
+### data ###
+out/
