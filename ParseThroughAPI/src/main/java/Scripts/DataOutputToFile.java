@@ -3,10 +3,7 @@ package Scripts;
 import Utils.SimpleDataExtract;
 
 import java.io.File;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Properties;
-import java.util.Set;
+import java.util.*;
 
 public class DataOutputToFile {
 
@@ -15,53 +12,50 @@ public class DataOutputToFile {
     private int QUANTITY_OF_USER_TO_EXTRACT;
     private final SimpleDataExtract extractor;
 
-    private static Set<String> USER_ANIME_COLUMNS = Set.of(
+    private static List<String> USER_ANIME_COLUMNS = List.of(
             "user_id", "anime_id", "score", "status"
     );
-    private static Set<String> ANIME_COLUMNS = Set.of(
+    private static List<String> ANIME_COLUMNS = List.of(
             "mal_id","episodes","score","scored_by", "rating", "season", "type",
             "title", "synopsis", "status"
     );
-    private static Set<String> ANIME_JOINS_COLUMNS = Set.of(
-            """
-                    (SELECT STRING_AGG(DISTINCT g.name, ', ')
-                         FROM genre g
-                         JOIN anime_genre ag ON g.mal_id = ag.genre_id
-                         WHERE ag.anime_id = a.mal_id) AS genres
-            """, """
-                    (SELECT STRING_AGG(DISTINCT g.name, ', ')
-                         FROM genre g
-                         JOIN anime_theme ag ON g.mal_id = ag.genre_id
-                         WHERE ag.anime_id = a.mal_id) AS themes
-            """, """
-                    (SELECT STRING_AGG(DISTINCT d.name, ', ')
-                         FROM demographic d
-                         JOIN anime_demographic ad ON d.mal_id = ad.demographic_id
-                         WHERE ad.anime_id = a.mal_id) AS demographics
-            """, """
-                    (SELECT STRING_AGG(DISTINCT s.name, ', ')
-                         FROM producer s
-                         JOIN anime_studio as_ ON s.mal_id = as_.producer_id
-                         WHERE as_.anime_id = a.mal_id) AS studios
-            """);
-    private static Set<String> ANIME_EVALUATION = Set.of();
-    private static Set<String> ANIME_EVALUATION_FILTERS = Set.of("us.total_entries > ?", "us.completed > ?");
-    private static Set<String> ANIME_FILTERS = Set.of();
+    private static List<String> ANIME_JOINS_COLUMNS = List.of(
+            "(SELECT STRING_AGG(DISTINCT g.name, ', ')\n" +
+                    "FROM genre g\n" +
+                    "JOIN anime_genre ag ON g.mal_id = ag.genre_id\n" +
+                    "WHERE ag.anime_id = a.mal_id) AS genres",
+            "(SELECT STRING_AGG(DISTINCT g.name, ', ')\n" +
+                    "FROM genre g\n" +
+                    "JOIN anime_theme ag ON g.mal_id = ag.genre_id\n" +
+                    "WHERE ag.anime_id = a.mal_id) AS themes",
+            "(SELECT STRING_AGG(DISTINCT d.name, ', ')\n" +
+                    "FROM demographic d\n" +
+                    "JOIN anime_demographic ad ON d.mal_id = ad.demographic_id\n" +
+                    "WHERE ad.anime_id = a.mal_id) AS demographics",
+            "(SELECT STRING_AGG(DISTINCT s.name, ', ')\n" +
+                    "FROM producer s\n" +
+                    "JOIN anime_studio as_ ON s.mal_id = as_.producer_id\n" +
+                    "WHERE as_.anime_id = a.mal_id) AS studios"
+    );
+    private static List<String> ANIME_EVALUATION = List.of();
+    private static List<String> ANIME_EVALUATION_FILTERS = List.of("us.completed > ?", "us.total_entries > ?",
+            "r.score IS NOT NULL");
+    private static List<String> ANIME_FILTERS = List.of();
 
 
-    public static void setUserAnimeColumns(Set<String> userAnimeColumns) {
+    public static void setUserAnimeColumns(List<String> userAnimeColumns) {
         USER_ANIME_COLUMNS = userAnimeColumns;
     }
 
-    public static void setAnimeColumns(Set<String> animeColumns) {
+    public static void setAnimeColumns(List<String> animeColumns) {
         ANIME_COLUMNS = animeColumns;
     }
 
-    public static void setAnimeJoins(Set<String> animeJoins) {
+    public static void setAnimeJoins(List<String> animeJoins) {
         ANIME_JOINS_COLUMNS = animeJoins;
     }
 
-    public static void setAnimeEvaluation(Set<String> animeEvaluation) {
+    public static void setAnimeEvaluation(List<String> animeEvaluation) {
         ANIME_EVALUATION = animeEvaluation;
     }
 
@@ -84,53 +78,80 @@ public class DataOutputToFile {
 
     public void close() { extractor.close(); }
 
-    private String buildSelect(String table, Set<String> columns) {
+    private String buildSelect(String table, List<String> columns) {
         return "SELECT " + String.join(",\n", columns) + " FROM " + table;
     }
 
-    private String buildFilter(Set<String> filters) {
-        if (filters.isEmpty()) {
+    private String buildFilter(List<String> filters) {
+        if (filters == null || filters.isEmpty()) {
             return "";
         }
         return "WHERE " + String.join(" AND ", filters);
     }
 
-    private Set<String> buildColumnsForTable(String table_variable, Set<String> columns, Set<String> rowLines) {
-        Set<String> newColumns = new HashSet<>();
+    private List<String> buildColumnsForTable(String tableVariable, List<String> columns, List<String> rowLines) {
+        List<String> newColumns = new ArrayList<>();
         for (String column : columns) {
-            newColumns.add(table_variable + "." + column);
+            newColumns.add(tableVariable + "." + column);
         }
-        newColumns.addAll(rowLines);
+        if (rowLines != null) newColumns.addAll(rowLines);
         return newColumns;
+    }
+
+    private void saveEvaluations(File outFile) throws Exception {
+        String usersSql = buildSelect("user_anime_stat r",
+                buildColumnsForTable("r", USER_ANIME_COLUMNS, ANIME_EVALUATION)) +
+                "\nJOIN\n" +
+                "user_stat us ON us.user_id = r.user_id\n" +
+                buildFilter(ANIME_EVALUATION_FILTERS);
+
+        extractor.exportQueryToParquet(usersSql,
+                List.of(MINIMUM_NUMBER_OF_COMPLETED_ANIME_IN_USER_LISTS, MINIMUM_NUMBER_OF_ANIME_IN_USER_LISTS),
+                outFile, Set.of("user_id"));
+    }
+
+    private void saveAnimes(File outFile) throws Exception {
+        String animeSql = buildSelect("anime a",
+                buildColumnsForTable("a", ANIME_COLUMNS, ANIME_JOINS_COLUMNS)) +
+                buildFilter(ANIME_FILTERS);
+        extractor.exportQueryToParquet(animeSql, null, outFile, null);
     }
 
     public void extractUsersToFile(File outDir) {
         if (!outDir.exists()) outDir.mkdirs();
         try {
-            File animeFile = new File(outDir, "anime.parquet");
-            String animeSql = buildSelect("anime a",
-                    buildColumnsForTable("a", ANIME_COLUMNS, ANIME_JOINS_COLUMNS)) +
-                    buildFilter(ANIME_FILTERS);
-            extractor.exportQueryToParquet(animeSql, null, animeFile, null);
+            Scanner sc = new Scanner(System.in);
 
-            File usersFile = new File(outDir, "users.parquet");
-            String usersSql = buildSelect("user_anime_stat r",
-                    buildColumnsForTable("r", USER_ANIME_COLUMNS, ANIME_EVALUATION)) +
-                            """
-                            \nJOIN
-                                user_stat us ON us.user_id = r.user_id
-                            """ +
-                    buildFilter(ANIME_EVALUATION_FILTERS);
-            System.out.println(usersSql);
-            extractor.exportQueryToParquet(usersSql, List.of(MINIMUM_NUMBER_OF_ANIME_IN_USER_LISTS,
-                    MINIMUM_NUMBER_OF_COMPLETED_ANIME_IN_USER_LISTS), usersFile, Set.of("user_id"));
+            File animeFile = new File(outDir, "anime.parquet");
+            if (animeFile.exists()) {
+                System.out.print("File with anime list, Have already existed. Do you want to skip it? (y/n)");
+                String line = sc.nextLine();
+                if (!line.equalsIgnoreCase("y")) {
+                    animeFile.delete();
+                    saveAnimes(animeFile);
+                }
+            } else {
+                saveAnimes(animeFile);
+            }
+
+            File evaluationsFile = new File(outDir, "evaluations.parquet");
+            if (evaluationsFile.exists()) {
+                System.out.print("File with users evaluation, Have already existed. Do you want to skip it? (y/n)");
+                String line = sc.nextLine();
+                if (!line.equalsIgnoreCase("y")) {
+                    evaluationsFile.delete();
+                    saveEvaluations(evaluationsFile);
+                }
+            } else {
+                saveEvaluations(evaluationsFile);
+            }
 
             System.out.println("Export finished to " + outDir.getAbsolutePath());
         } catch ( Exception e ) {
-            System.out.println(e.getMessage());
+            System.out.println("Error while exporting: " + e.getMessage());
+            e.printStackTrace();
         }
     }
-
 
     public static void main(String[] args) {
         Properties dbProps = new Properties();

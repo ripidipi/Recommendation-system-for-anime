@@ -16,7 +16,6 @@ import java.sql.*;
 import java.time.Instant;
 import java.util.*;
 
-
 public class SimpleDataExtract implements AutoCloseable {
     private final HikariDataSource ds;
     private final int fetchSize;
@@ -63,7 +62,7 @@ public class SimpleDataExtract implements AutoCloseable {
                 setParams(ps, params);
                 try (ResultSet rs = ps.executeQuery()) {
                     ResultSetMetaData md = rs.getMetaData();
-                    Schema schema = buildSchemaFromMeta(md);
+                    Schema schema = buildSchemaFromMeta(md, fieldsToAnonymize);
 
                     Configuration conf = new Configuration();
                     Path path = new Path(outFile.getAbsolutePath());
@@ -81,10 +80,50 @@ public class SimpleDataExtract implements AutoCloseable {
                                 int sqlType = md.getColumnType(c);
                                 Object val = readTypedValue(rs, c, sqlType);
 
-                                if (fieldsToAnonymize != null && fieldsToAnonymize.contains(name)) {
-                                    if (val instanceof Integer || val instanceof Long) {
-                                        long id = ((Number) val).longValue();
-                                        val = IdAnonymizer.anonymizeId(id);
+                                if (fieldsToAnonymize != null && fieldsToAnonymize.contains(name) && val != null) {
+                                    val = IdAnonymizer.anonymizeId(val.toString());
+                                }
+                                Schema.Field field = schema.getField(name);
+                                Schema fieldSchema = field.schema();
+                                Schema.Type expectedType = null;
+
+                                if (fieldSchema.getType() == Schema.Type.UNION) {
+                                    for (Schema s : fieldSchema.getTypes()) {
+                                        if (s.getType() != Schema.Type.NULL) {
+                                            expectedType = s.getType();
+                                            break;
+                                        }
+                                    }
+                                } else {
+                                    expectedType = fieldSchema.getType();
+                                }
+
+                                if (val == null) {
+                                } else if (val instanceof Number && expectedType != null) {
+                                    Number n = (Number) val;
+                                    switch (expectedType) {
+                                        case INT -> val = n.intValue();
+                                        case LONG -> val = n.longValue();
+                                        case DOUBLE -> val = n.doubleValue();
+                                        case STRING -> val = n.toString();
+                                        case BOOLEAN -> val = (n.intValue() != 0);
+                                        default -> { }
+                                    }
+                                } else if (val instanceof String && expectedType != null) {
+                                    String s = ((String) val).trim();
+                                    if (s.isEmpty()) {
+                                        val = null;
+                                    } else {
+                                        try {
+                                            switch (expectedType) {
+                                                case INT -> val = Integer.parseInt(s);
+                                                case LONG -> val = Long.parseLong(s);
+                                                case DOUBLE -> val = Double.parseDouble(s);
+                                                case BOOLEAN -> val = Boolean.parseBoolean(s);
+                                                default -> { }
+                                            }
+                                        } catch (NumberFormatException ex) {
+                                        }
                                     }
                                 }
 
@@ -98,8 +137,7 @@ public class SimpleDataExtract implements AutoCloseable {
         }
     }
 
-
-    private static Schema buildSchemaFromMeta(ResultSetMetaData md) throws SQLException {
+    private static Schema buildSchemaFromMeta(ResultSetMetaData md, Set<String> fieldsToAnonymize) throws SQLException {
         String recordName = "Row";
         Schema record = Schema.createRecord(recordName, null, null, false);
         List<Schema.Field> fields = new ArrayList<>();
@@ -107,7 +145,12 @@ public class SimpleDataExtract implements AutoCloseable {
         for (int i = 1; i <= cols; i++) {
             String name = md.getColumnLabel(i);
             int sqlType = md.getColumnType(i);
-            Schema base = sqlTypeToAvroSchema(sqlType);
+            Schema base;
+            if (fieldsToAnonymize != null && fieldsToAnonymize.contains(name)) {
+                base = Schema.create(Schema.Type.STRING);
+            } else {
+                base = sqlTypeToAvroSchema(sqlType);
+            }
             List<Schema> union = Arrays.asList(Schema.create(Schema.Type.NULL), base);
             Schema unionSchema = Schema.createUnion(union);
             Schema.Field f = new Schema.Field(name, unionSchema, null, Schema.Field.NULL_DEFAULT_VALUE);
@@ -143,35 +186,38 @@ public class SimpleDataExtract implements AutoCloseable {
     }
 
     private static Object readTypedValue(ResultSet rs, int colIndex, int sqlType) throws SQLException {
-        switch (sqlType) {
-            case Types.INTEGER:
-            case Types.SMALLINT:
-            case Types.TINYINT:
-                int i = rs.getInt(colIndex);
-                return rs.wasNull() ? null : i;
-            case Types.BIGINT:
-                long l = rs.getLong(colIndex);
-                return rs.wasNull() ? null : l;
-            case Types.FLOAT:
-            case Types.REAL:
-            case Types.DOUBLE:
-            case Types.NUMERIC:
-            case Types.DECIMAL:
-                double d = rs.getDouble(colIndex);
-                return rs.wasNull() ? null : d;
-            case Types.BOOLEAN:
-            case Types.BIT:
-                boolean b = rs.getBoolean(colIndex);
-                return rs.wasNull() ? null : b;
-            case Types.TIMESTAMP:
-            case Types.DATE:
-            case Types.TIME:
-                Timestamp ts = rs.getTimestamp(colIndex);
-                return ts == null ? null : Instant.ofEpochMilli(ts.getTime()).toString(); // ISO
-            default:
-                String s = rs.getString(colIndex);
-                return s;
+        Object obj = rs.getObject(colIndex);
+        switch (obj) {
+            case null -> {
+                return null;
+            }
+            case Timestamp timestamp -> {
+                return Instant.ofEpochMilli(timestamp.getTime()).toString();
+            }
+            case java.sql.Date date -> {
+                return obj.toString();
+            }
+            case Time time -> {
+                return obj.toString();
+            }
+            case java.math.BigDecimal bigDecimal -> {
+                return bigDecimal.doubleValue();
+            }
+            case Array array -> {
+                try {
+                    Object[] arr = (Object[]) ((Array) obj).getArray();
+                    return Arrays.toString(arr);
+                } catch (Exception e) {
+                    return obj.toString();
+                }
+            }
+            case Number number -> {
+                return obj;
+            }
+            default -> {
+            }
         }
+        return obj.toString();
     }
 
     private static void setParams(PreparedStatement ps, List<Object> params) throws SQLException {

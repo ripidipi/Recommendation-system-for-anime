@@ -20,9 +20,8 @@ public class IdAnonymizer {
         return key;
     }
 
-    public static String anonymizeId(long originalId) {
+    public static String anonymizeId(String originalId) {
         try {
-            System.out.println(Arrays.toString(SECRET_KEY));
             Mac mac = Mac.getInstance("HmacSHA256");
             mac.init(new SecretKeySpec(SECRET_KEY, "HmacSHA256"));
             return Base64.getUrlEncoder().withoutPadding()
