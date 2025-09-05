@@ -9,6 +9,8 @@ public class DataOutputToFile {
 
     private final int MINIMUM_NUMBER_OF_ANIME_IN_USER_LISTS;
     private final int MINIMUM_NUMBER_OF_COMPLETED_ANIME_IN_USER_LISTS;
+    private final int MINIMUM_NUMBER_OF_RATED_ANIME_IN_USER_LISTS;
+    private boolean SHOW_SQL;
     private final SimpleDataExtract extractor;
 
     private static List<String> USER_ANIME_COLUMNS = List.of(
@@ -18,7 +20,8 @@ public class DataOutputToFile {
             "mal_id","episodes","score","scored_by", "rating", "season", "type",
             "title", "synopsis", "status"
     );
-    private static List<String> ANIME_JOINS_COLUMNS = List.of(
+
+    private static final List<String> ANIME_JOINS_COLUMNS = List.of(
             "(SELECT STRING_AGG(DISTINCT g.name, ', ')\n" +
                     "FROM genre g\n" +
                     "JOIN anime_genre ag ON g.mal_id = ag.genre_id\n" +
@@ -36,10 +39,11 @@ public class DataOutputToFile {
                     "JOIN anime_studio as_ ON s.mal_id = as_.producer_id\n" +
                     "WHERE as_.anime_id = a.mal_id) AS studios"
     );
-    private static List<String> ANIME_EVALUATION = List.of();
+    private static final List<String> ANIME_EVALUATION_JOIN_COLUMNS = List.of();
+
     private static List<String> ANIME_EVALUATION_FILTERS = List.of("us.completed > ?", "us.total_entries > ?",
             "r.score IS NOT NULL");
-    private static List<String> ANIME_FILTERS = List.of();
+    private static List<String> ANIME_FILTERS = List.of("a.approved = true");
 
 
     public void setUserAnimeColumns(List<String> userAnimeColumns) {
@@ -58,6 +62,10 @@ public class DataOutputToFile {
         ANIME_EVALUATION_FILTERS = animeEvaluationFilters;
     }
 
+    public void setSHOW_SQL(boolean SHOW_SQL) {
+        this.SHOW_SQL = SHOW_SQL;
+    }
+
     public List<String> getAnimeFilters() {
         return ANIME_FILTERS;
     }
@@ -65,7 +73,6 @@ public class DataOutputToFile {
     public List<String> getAnimeEvaluationFilters() {
         return ANIME_EVALUATION_FILTERS;
     }
-
 
     public List<String> getAnimeColumns() {
         return ANIME_COLUMNS;
@@ -75,23 +82,24 @@ public class DataOutputToFile {
         return USER_ANIME_COLUMNS;
     }
 
-    public int getMINIMUM_NUMBER_OF_COMPLETED_ANIME_IN_USER_LISTS() {
-        return MINIMUM_NUMBER_OF_COMPLETED_ANIME_IN_USER_LISTS;
-    }
-
     public int getMINIMUM_NUMBER_OF_ANIME_IN_USER_LISTS() {
         return MINIMUM_NUMBER_OF_ANIME_IN_USER_LISTS;
     }
 
+    public int getMINIMUM_NUMBER_OF_COMPLETED_ANIME_IN_USER_LISTS() {
+        return MINIMUM_NUMBER_OF_COMPLETED_ANIME_IN_USER_LISTS;
+    }
+
     public DataOutputToFile(int minNumberOfAnimeInLists, int minNumberOfCompletedAnimeInLists,
-                            Properties dbProps) {
+                            int minNumberOfRatedAnimeInLists, Properties dbProps) {
         this.MINIMUM_NUMBER_OF_ANIME_IN_USER_LISTS = minNumberOfAnimeInLists;
         this.MINIMUM_NUMBER_OF_COMPLETED_ANIME_IN_USER_LISTS = minNumberOfCompletedAnimeInLists;
+        this.MINIMUM_NUMBER_OF_RATED_ANIME_IN_USER_LISTS = minNumberOfRatedAnimeInLists;
         this.extractor = new SimpleDataExtract(dbProps, 1000);
     }
 
     public DataOutputToFile(Properties dbProps) {
-        this(Integer.MIN_VALUE, Integer.MIN_VALUE, dbProps);
+        this(Integer.MIN_VALUE, Integer.MIN_VALUE, Integer.MIN_VALUE, dbProps);
     }
 
     public void close() { extractor.close(); }
@@ -118,20 +126,32 @@ public class DataOutputToFile {
 
     private void saveEvaluations(File outFile) throws Exception {
         String usersSql = buildSelect("user_anime_stat r",
-                buildColumnsForTable("r", USER_ANIME_COLUMNS, ANIME_EVALUATION)) +
+                buildColumnsForTable("r", USER_ANIME_COLUMNS, ANIME_EVALUATION_JOIN_COLUMNS)) +
                 "\nJOIN\n" +
-                "user_stat us ON us.user_id = r.user_id\n" +
+                "user_stat us ON us.user_id = r.user_id" +
+                "\nJOIN (\n" +
+                " SELECT user_id" +
+                " FROM user_anime_stat" +
+                " WHERE score IS NOT NULL" +
+                " GROUP BY user_id " +
+                " HAVING COUNT(score) > ? " +
+                " ) AS active_users ON r.user_id = active_users.user_id\n" +
                 buildFilter(ANIME_EVALUATION_FILTERS);
-
+        if (SHOW_SQL)
+            System.out.println(usersSql);
         extractor.exportQueryToParquet(usersSql,
-                List.of(MINIMUM_NUMBER_OF_COMPLETED_ANIME_IN_USER_LISTS, MINIMUM_NUMBER_OF_ANIME_IN_USER_LISTS),
+                List.of(MINIMUM_NUMBER_OF_COMPLETED_ANIME_IN_USER_LISTS,
+                        MINIMUM_NUMBER_OF_ANIME_IN_USER_LISTS,
+                        MINIMUM_NUMBER_OF_RATED_ANIME_IN_USER_LISTS),
                 outFile, Set.of("user_id"));
     }
 
     private void saveAnimes(File outFile) throws Exception {
-        String animeSql = buildSelect("anime a",
+        String animeSql = buildSelect("anime a ",
                 buildColumnsForTable("a", ANIME_COLUMNS, ANIME_JOINS_COLUMNS)) +
                 buildFilter(ANIME_FILTERS);
+        if (SHOW_SQL)
+            System.out.println(animeSql);
         extractor.exportQueryToParquet(animeSql, null, outFile, null);
     }
 

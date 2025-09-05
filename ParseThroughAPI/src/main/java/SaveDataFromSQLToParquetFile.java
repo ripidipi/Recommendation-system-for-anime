@@ -21,6 +21,8 @@ public class SaveDataFromSQLToParquetFile {
                 "MINIMUM_NUMBER_OF_ANIME_IN_USER_LISTS", "50"));
         int minimalCompleted = Integer.parseInt(System.getenv().getOrDefault(
                 "MINIMUM_NUMBER_OF_COMPLETED_ANIME", "10"));
+        int minNumberOfRatedAnimeInLists = Integer.parseInt(System.getenv().getOrDefault(
+                "MINIMUM_NUMBER_OF_RATED_ANIME_IN_USER_LISTS", "25"));
         String animeColumns = (System.getenv().getOrDefault(
                 "USER_ANIME_COLUMNS", null));
         String usersAnimeColumns = System.getenv().getOrDefault(
@@ -29,17 +31,18 @@ public class SaveDataFromSQLToParquetFile {
                 "ANIME_FILTERS", null));
         String userFilters = System.getenv().getOrDefault(
                 "ANIME_EVALUATION_FILTERS", null);
+        Boolean showSQL = Boolean.parseBoolean(System.getenv().getOrDefault(
+                "SHOW_SQL", "true"));
+
         dbProps.setProperty("jdbc.url", dbUrl);
         dbProps.setProperty("jdbc.user", dbUser);
         dbProps.setProperty("jdbc.password", dbPass);
         DataOutputToFile outFile = new DataOutputToFile(minimalFinished,
-                minimalCompleted, dbProps);
+                minimalCompleted, minNumberOfRatedAnimeInLists, dbProps);
 
         System.out.println("CONFIG:");
         System.out.println(" DB_URL=" + dbUrl);
         System.out.println(" DB_USER=" + dbUser);
-        System.out.println(" JIKAN_BASE=" + System.getenv().getOrDefault("JIKAN_BASE",
-                "https://api.jikan.moe/v4"));
         System.out.println(" minimalNumberOfAnimeInLists=" +
                 outFile.getMINIMUM_NUMBER_OF_ANIME_IN_USER_LISTS());
         System.out.println(" minimalNumberOfCompletedAnimeInLists=" +
@@ -60,6 +63,10 @@ public class SaveDataFromSQLToParquetFile {
         if (userFilters != null) {
             outFile.setAnimeEvaluationFilters(List.of(userFilters.split(",")));
             System.out.println("New users evaluation filters are set up: " + outFile.getAnimeEvaluationFilters());
+        }
+        if (showSQL) {
+            outFile.setSHOW_SQL(true);
+            System.out.println("SQl will be displayed in the terminal");
         }
         File outDir = new File("out");
 
