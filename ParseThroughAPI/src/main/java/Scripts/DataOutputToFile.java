@@ -7,9 +7,8 @@ import java.util.*;
 
 public class DataOutputToFile {
 
-    private int MINIMUM_NUMBER_OF_ANIME_IN_USER_LISTS;
-    private int MINIMUM_NUMBER_OF_COMPLETED_ANIME_IN_USER_LISTS;
-    private int QUANTITY_OF_USER_TO_EXTRACT;
+    private final int MINIMUM_NUMBER_OF_ANIME_IN_USER_LISTS;
+    private final int MINIMUM_NUMBER_OF_COMPLETED_ANIME_IN_USER_LISTS;
     private final SimpleDataExtract extractor;
 
     private static List<String> USER_ANIME_COLUMNS = List.of(
@@ -43,37 +42,56 @@ public class DataOutputToFile {
     private static List<String> ANIME_FILTERS = List.of();
 
 
-    public static void setUserAnimeColumns(List<String> userAnimeColumns) {
+    public void setUserAnimeColumns(List<String> userAnimeColumns) {
         USER_ANIME_COLUMNS = userAnimeColumns;
     }
 
-    public static void setAnimeColumns(List<String> animeColumns) {
+    public void setAnimeColumns(List<String> animeColumns) {
         ANIME_COLUMNS = animeColumns;
     }
 
-    public static void setAnimeJoins(List<String> animeJoins) {
-        ANIME_JOINS_COLUMNS = animeJoins;
+    public void setAnimeFilters(List<String> animeFilters) {
+        ANIME_FILTERS = animeFilters;
     }
 
-    public static void setAnimeEvaluation(List<String> animeEvaluation) {
-        ANIME_EVALUATION = animeEvaluation;
+    public void setAnimeEvaluationFilters(List<String> animeEvaluationFilters) {
+        ANIME_EVALUATION_FILTERS = animeEvaluationFilters;
     }
 
-    public DataOutputToFile(int minNumberOfAnimeInLists, int minNumberOfCompletedAnimeInLists,
-                            int quantityOfUserToExtract, Properties dbProps) {
-        this.MINIMUM_NUMBER_OF_ANIME_IN_USER_LISTS = minNumberOfAnimeInLists;
-        this.MINIMUM_NUMBER_OF_COMPLETED_ANIME_IN_USER_LISTS = minNumberOfCompletedAnimeInLists;
-        this.QUANTITY_OF_USER_TO_EXTRACT = quantityOfUserToExtract;
-        this.extractor = new SimpleDataExtract(dbProps, 1000);
+    public List<String> getAnimeFilters() {
+        return ANIME_FILTERS;
+    }
+
+    public List<String> getAnimeEvaluationFilters() {
+        return ANIME_EVALUATION_FILTERS;
+    }
+
+
+    public List<String> getAnimeColumns() {
+        return ANIME_COLUMNS;
+    }
+
+    public List<String> getUserAnimeColumns() {
+        return USER_ANIME_COLUMNS;
+    }
+
+    public int getMINIMUM_NUMBER_OF_COMPLETED_ANIME_IN_USER_LISTS() {
+        return MINIMUM_NUMBER_OF_COMPLETED_ANIME_IN_USER_LISTS;
+    }
+
+    public int getMINIMUM_NUMBER_OF_ANIME_IN_USER_LISTS() {
+        return MINIMUM_NUMBER_OF_ANIME_IN_USER_LISTS;
     }
 
     public DataOutputToFile(int minNumberOfAnimeInLists, int minNumberOfCompletedAnimeInLists,
                             Properties dbProps) {
-        this(minNumberOfAnimeInLists, minNumberOfCompletedAnimeInLists, Integer.MAX_VALUE, dbProps);
+        this.MINIMUM_NUMBER_OF_ANIME_IN_USER_LISTS = minNumberOfAnimeInLists;
+        this.MINIMUM_NUMBER_OF_COMPLETED_ANIME_IN_USER_LISTS = minNumberOfCompletedAnimeInLists;
+        this.extractor = new SimpleDataExtract(dbProps, 1000);
     }
 
     public DataOutputToFile(Properties dbProps) {
-        this(Integer.MIN_VALUE, Integer.MIN_VALUE, Integer.MAX_VALUE, dbProps);
+        this(Integer.MIN_VALUE, Integer.MIN_VALUE, dbProps);
     }
 
     public void close() { extractor.close(); }
@@ -151,21 +169,5 @@ public class DataOutputToFile {
             System.out.println("Error while exporting: " + e.getMessage());
             e.printStackTrace();
         }
-    }
-
-    public static void main(String[] args) {
-        Properties dbProps = new Properties();
-        String dbUrl = System.getProperty("hibernate.hikari.dataSource.url",
-                System.getenv().getOrDefault("DB_URL", "jdbc:postgresql://localhost:5432/anime_db"));
-        String dbUser = System.getProperty("hibernate.hikari.dataSource.user",
-                System.getenv().getOrDefault("DB_USER", "rudeus"));
-        String dbPass = System.getProperty("hibernate.hikari.dataSource.password",
-                System.getenv().getOrDefault("DB_PASS", "sylphi_pants"));
-        dbProps.setProperty("jdbc.url", dbUrl);
-        dbProps.setProperty("jdbc.user", dbUser);
-        dbProps.setProperty("jdbc.password", dbPass);
-        DataOutputToFile outFile = new DataOutputToFile(dbProps);
-        File outDir = new File("out");
-        outFile.extractUsersToFile(outDir);
     }
 }

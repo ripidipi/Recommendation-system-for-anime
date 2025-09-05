@@ -78,8 +78,8 @@ public class FetchUsers {
     public static void fetchAndPersistRandomUsers(int numberOfUsers, int numberOfAnimeInLists,
                                                   int numberOfCompletedAnimeInLists) {
         final int MAX_TASK_MS = 120_000;
-        final int BETWEEN_TASK_SLEEP_MS = 1_600;
-        final int POOL_SIZE = 10;
+        final int BETWEEN_TASK_SLEEP_MS = 2_500;
+        final int POOL_SIZE = 7;
 
         ExecutorService workerPool = Executors.newFixedThreadPool(POOL_SIZE);
         ScheduledExecutorService scheduledCanceller = Executors.newSingleThreadScheduledExecutor();
@@ -337,7 +337,7 @@ public class FetchUsers {
                     lastIo = ioe;
                     long sleep = BASE_SLEEP_MS * attempt;
                     System.out.println("Network/IO error for " + url + " -> " + ioe.getMessage());
-                    Thread.sleep(sleep);
+                    Thread.sleep(5_000);
                 }
             }
             if (dr == null) {
