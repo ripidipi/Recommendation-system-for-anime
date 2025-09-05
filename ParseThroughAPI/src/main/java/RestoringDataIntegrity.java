@@ -18,8 +18,6 @@ public class RestoringDataIntegrity {
         System.out.println("CONFIG:");
         System.out.println(" DB_URL=" + dbUrl);
         System.out.println(" DB_USER=" + dbUser);
-        System.out.println(" JIKAN_BASE=" + System.getenv().getOrDefault("JIKAN_BASE",
-                "https://api.jikan.moe/v4"));
         System.out.println(" batchSize=" + batchSize);
         System.out.println(" thresholdPercentage=" + thresholdPercentage);
 

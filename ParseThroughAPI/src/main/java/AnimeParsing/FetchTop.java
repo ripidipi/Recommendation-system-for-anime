@@ -184,7 +184,4 @@ public class FetchTop {
         }
         return mapper.readValue(response.body(), AnimeTopResult.class);
     }
-
-
-
 }
