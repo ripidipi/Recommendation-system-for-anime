@@ -10,7 +10,7 @@ import java.util.List;
 @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
 public class Anime {
 
-    public int malId;
+    public Integer malId;
     public String url;
     public String status;
     public String title;
@@ -33,4 +33,91 @@ public class Anime {
     public List<Genre> themes;
     public List<Demographic> demographics;
 
+    public Integer getMalId() {
+        return malId;
+    }
+
+    public String getUrl() {
+        return url;
+    }
+
+    public String getStatus() {
+        return status;
+    }
+
+    public String getTitle() {
+        return title;
+    }
+
+    public Boolean getApproved() {
+        return approved;
+    }
+
+    public String getTitleEnglish() {
+        return titleEnglish;
+    }
+
+    public String getTitleJapanese() {
+        return titleJapanese;
+    }
+
+    public String getType() {
+        return type;
+    }
+
+    public Integer getEpisodes() {
+        return episodes;
+    }
+
+    public String getRating() {
+        return rating;
+    }
+
+    public Double getScore() {
+        return score;
+    }
+
+    public Integer getScoredBy() {
+        return scoredBy;
+    }
+
+    public String getSynopsis() {
+        return synopsis;
+    }
+
+    public String getBackground() {
+        return background;
+    }
+
+    public String getSeason() {
+        return season;
+    }
+
+    public Integer getYear() {
+        return year;
+    }
+
+    public List<Producer> getProducers() {
+        return producers;
+    }
+
+    public List<Producer> getLicensors() {
+        return licensors;
+    }
+
+    public List<Producer> getStudios() {
+        return studios;
+    }
+
+    public List<Genre> getGenres() {
+        return genres;
+    }
+
+    public List<Genre> getThemes() {
+        return themes;
+    }
+
+    public List<Demographic> getDemographics() {
+        return demographics;
+    }
 }
