@@ -41,7 +41,9 @@ public final class DateTime {
                 long epoch = Long.parseLong(s);
                 return parseEpochSeconds(epoch);
             }
-        } catch (Exception _) { }
+        } catch (Exception e) {
+            System.out.println("Error parsing date: " + s);
+        }
 
         for (DateTimeFormatter f : ISO_VARIANTS) {
             try {
@@ -57,7 +59,9 @@ public final class DateTime {
                         try {
                             OffsetDateTime odt = OffsetDateTime.parse(s, f);
                             return odt;
-                        } catch (DateTimeException _) { }
+                        } catch (DateTimeException e) {
+                            System.out.println("Error parsing date: " + s);
+                        }
                     }
                 }
                 if (instant != null) return OffsetDateTime.ofInstant(instant, ZoneOffset.UTC);

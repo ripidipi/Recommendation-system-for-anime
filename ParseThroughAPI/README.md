@@ -6,7 +6,7 @@
 ```
 src/main/java/
 ├─ AnimeParsing/
-│  ├─ Anime.java
+│  ├─ AnimeParsing.java
 │  ├─ AnimeTopResult.java
 │  ├─ Demographic.java
 │  ├─ FetchTop.java
@@ -14,7 +14,7 @@ src/main/java/
 │  ├─ Parser.java
 │  └─ Producer.java
 ├─ Data/
-│  ├─ Anime.java
+│  ├─ AnimeParsing.java
 │  ├─ Demographic.java
 │  ├─ Genre.java
 │  ├─ Producer.java

@@ -42,9 +42,8 @@ public class DataOutputToFile {
     private static final List<String> ANIME_EVALUATION_JOIN_COLUMNS = List.of();
 
     private static List<String> ANIME_EVALUATION_FILTERS = List.of("us.completed > ?", "us.total_entries > ?",
-            "r.score IS NOT NULL");
+            "r.score IS NOT NULL", "us.mean_score BETWEEN 4 AND 9");
     private static List<String> ANIME_FILTERS = List.of("a.approved = true");
-
 
     public void setUserAnimeColumns(List<String> userAnimeColumns) {
         USER_ANIME_COLUMNS = userAnimeColumns;

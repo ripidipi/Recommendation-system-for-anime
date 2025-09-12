@@ -13,4 +13,19 @@ public class Producer {
     public String name;
     public String url;
 
+    public String getUrl() {
+        return url;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public String getType() {
+        return type;
+    }
+
+    public int getMalId() {
+        return malId;
+    }
 }
