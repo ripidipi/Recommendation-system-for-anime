@@ -38,7 +38,7 @@ class AnimeParsingTest {
         assertThat(anime.getDemographics()).isNotNull();
     }
 
-    @RepeatedTest(20)
+    @RepeatedTest(100)
     void instancioRandomSeed(TestReporter reporter) {
         long seed = new Random().nextLong();
         reporter.publishEntry("seed", Long.toString(seed));

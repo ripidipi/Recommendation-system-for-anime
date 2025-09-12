@@ -30,7 +30,7 @@
         <hikari.version>5.1.0</hikari.version>
 
         <!-- Test deps -->
-        <junit.jupiter.version>5.11.0</junit.jupiter.version>
+        <junit.juiter.version>5.11.0</junit.juiter.version>
         <assertj.version>3.26.3</assertj.version>
         <mockito.version>5.14.0</mockito.version>
         <instancio.version>4.8.0</instancio.version>
@@ -138,13 +138,6 @@
 
         <!-- Test -->
         <dependency>
-            <groupId>org.junit.jupiter</groupId>
-            <artifactId>junit-jupiter</artifactId>
-            <version>${junit.jupiter.version}</version>
-            <scope>test</scope>
-        </dependency>
-
-        <dependency>
             <groupId>org.assertj</groupId>
             <artifactId>assertj-core</artifactId>
             <version>${assertj.version}</version>
@@ -183,6 +176,13 @@
             <groupId>net.bytebuddy</groupId>
             <artifactId>byte-buddy-agent</artifactId>
             <version>${bytebuddy.version}</version>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-junit-jupiter</artifactId>
+            <version>${mockito.version}</version>
             <scope>test</scope>
         </dependency>
 

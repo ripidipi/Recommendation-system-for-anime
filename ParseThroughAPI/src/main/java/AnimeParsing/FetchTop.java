@@ -139,7 +139,9 @@ public class FetchTop {
             }
             try {
                 Thread.sleep(1000);
-            } catch (Exception _) { }
+            } catch (Exception e) {
+                System.out.println("Error sleeping: " + e.getMessage());
+            }
         }
         int l = lo;
         int r = Math.max(hi, lo + 1) - 1;
@@ -152,7 +154,9 @@ public class FetchTop {
             }
             try {
                 Thread.sleep(1000);
-            } catch (Exception _) { }
+            } catch (Exception e) {
+                System.out.println("Error sleeping: " + e.getMessage());
+            }
         }
         return l;
     }
