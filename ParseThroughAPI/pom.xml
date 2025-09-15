@@ -32,10 +32,10 @@
         <!-- Test deps -->
         <junit.juiter.version>5.11.0</junit.juiter.version>
         <assertj.version>3.26.3</assertj.version>
-        <mockito.version>5.14.0</mockito.version>
+        <mockito.version>5.19.0</mockito.version>
         <instancio.version>4.8.0</instancio.version>
         <h2.version>2.1.214</h2.version>
-        <bytebuddy.version>1.14.12</bytebuddy.version>
+        <bitbuddy.version>1.17.6</bitbuddy.version>
 
         <!-- Plugins -->
         <maven.compiler.plugin.version>3.11.0</maven.compiler.plugin.version>
@@ -123,10 +123,18 @@
             <artifactId>slf4j-api</artifactId>
             <version>${slf4j.version}</version>
         </dependency>
+
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-simple</artifactId>
             <version>${slf4j.version}</version>
+            <scope>runtime</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.javassist</groupId>
+            <artifactId>javassist</artifactId>
+            <version>3.29.2-GA</version>
             <scope>runtime</scope>
         </dependency>
 
@@ -156,6 +164,12 @@
             <artifactId>instancio-core</artifactId>
             <version>${instancio.version}</version>
             <scope>test</scope>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.mockito</groupId>
+                    <artifactId>mockito-inline</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
 
         <dependency>
@@ -166,23 +180,23 @@
         </dependency>
 
         <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-junit-jupiter</artifactId>
+            <version>${mockito.version}</version>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
             <groupId>net.bytebuddy</groupId>
             <artifactId>byte-buddy</artifactId>
-            <version>${bytebuddy.version}</version>
+            <version>${bitbuddy.version}</version>
             <scope>test</scope>
         </dependency>
 
         <dependency>
             <groupId>net.bytebuddy</groupId>
             <artifactId>byte-buddy-agent</artifactId>
-            <version>${bytebuddy.version}</version>
-            <scope>test</scope>
-        </dependency>
-
-        <dependency>
-            <groupId>org.mockito</groupId>
-            <artifactId>mockito-junit-jupiter</artifactId>
-            <version>${mockito.version}</version>
+            <version>${bitbuddy.version}</version>
             <scope>test</scope>
         </dependency>
 
