@@ -3,9 +3,29 @@ package AnimeParsing;
 import Mapper.AnimeMapper;
 import jakarta.persistence.*;
 
+import java.util.HashMap;
+import java.util.Map;
+
 public class Parser {
 
-    private static final EntityManagerFactory emf = Persistence.createEntityManagerFactory("animePU");
+    private static volatile EntityManagerFactory emf;
+
+    public static EntityManagerFactory getEmf() {
+        if (emf == null) {
+            synchronized (Parser.class) {
+                if (emf == null) {
+                    try {
+                        Map<String, Object> props = new HashMap<>();
+                        props.put("hibernate.bytecode.provider", "javassist");
+                        emf = Persistence.createEntityManagerFactory("animePU", props);
+                    } catch (Exception e) {
+                        throw new RuntimeException("Failed to initialize EntityManagerFactory", e);
+                    }
+                }
+            }
+        }
+        return emf;
+    }
 
     public static void saveAnimeToDB(Anime dto) {
         EntityManager em = emf.createEntityManager();

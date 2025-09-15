@@ -63,7 +63,7 @@ class AnimeParsingTest {
         assertThat(anime.titleEnglish).isEqualTo("Frieren: Beyond Journey's End");
         assertThat(anime.titleJapanese).isEqualTo("葬送のフリーレン");
         assertThat(anime.episodes).isEqualTo(28);
-        assertThat(anime.score).isCloseTo(9.29, within(1e-4));;
+        assertThat(anime.score).isCloseTo(9.29, within(1e-4));
 
         assertThat(anime.producers).extracting("name")
                 .contains("Aniplex", "Dentsu", "TOHO animation");
