@@ -190,7 +190,6 @@
             <groupId>net.bytebuddy</groupId>
             <artifactId>byte-buddy</artifactId>
             <version>${bitbuddy.version}</version>
-            <scope>test</scope>
         </dependency>
 
         <dependency>
