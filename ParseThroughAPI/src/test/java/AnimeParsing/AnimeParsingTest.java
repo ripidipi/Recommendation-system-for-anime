@@ -48,7 +48,7 @@ class AnimeParsingTest {
             assertThat(anime.getTitle()).isNotBlank();
             assertThat(anime.getGenres()).isNotNull().isNotEmpty();
         } catch (AssertionError ae) {
-            throw new AssertionError("Seed=" + seed, ae);
+            throw new AssertionError("Seed="  + seed, ae);
         }
     }
 

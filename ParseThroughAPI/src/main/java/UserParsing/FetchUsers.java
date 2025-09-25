@@ -73,7 +73,7 @@ public class FetchUsers {
 
     private static final SimpleRateLimiter MAL_RATE_LIMITER = new SimpleRateLimiter(1000, 800);
     private static final ConcurrentHashMap<String, Long> taintedHosts = new ConcurrentHashMap<>();
-    private static final long TAINT_MILLIS = Duration.ofMinutes(2).toMillis();
+    private static final long TAINT_MILLIS = Duration.ofMinutes(1).toMillis();
 
     public static void fetchAndPersistRandomUsers(int numberOfUsers, int numberOfAnimeInLists,
                                                   int numberOfCompletedAnimeInLists) {
@@ -216,68 +216,103 @@ public class FetchUsers {
 
     private record DecodedResponse(int status, String body, String contentEncoding, String contentType) { }
 
-    private static DecodedResponse fetchDecoded(String url) throws IOException, InterruptedException {
+    private static DecodedResponse fetchDecoded(String url) throws IOException {
+        final int MAX_CAPTCHA_RETRIES = 3;
         String hostKey = url.contains("myanimelist.net") ? "myanimelist.net" : url;
 
-        Long until = taintedHosts.get(hostKey);
-        if (until != null && System.currentTimeMillis() < until) {
-            throw new IOException("Host " + hostKey + " is tainted until " + until);
-        }
+        int captchaRetries = 0;
 
-        if (url.contains("myanimelist.net")) {
-            MAL_RATE_LIMITER.acquire();
-        }
-
-        OkHttpClient client = HTTP_CLIENT_MANAGER.getClient();
-
-        Request req = requestBuild(url);
-        try (Response resp = client.newCall(req).execute()) {
-            int status = resp.code();
-            byte[] bodyBytes = resp.body() == null ? new byte[0] : resp.body().bytes();
-            String contentEncoding = resp.header("Content-Encoding", "");
-            String contentType = resp.header("Content-Type", "");
-
-            System.out.println("URL: " + url + " -> status=" + status + ", bytes=" + (bodyBytes==null?0:bodyBytes.length)
-                    + ", enc=" + contentEncoding + ", type=" + contentType);
-
-            byte[] decompressed = bodyBytes;
-            boolean isGzip = false;
-            try {
-                String encLower = contentEncoding == null ? "" : contentEncoding.toLowerCase(Locale.ROOT);
-                isGzip = encLower.contains("gzip")
-                        || (bodyBytes != null && bodyBytes.length >= 2 && (bodyBytes[0] == (byte)0x1F && bodyBytes[1] == (byte)0x8B));
-            } catch (Exception ignored) {}
-
-            if (isGzip && bodyBytes != null && bodyBytes.length > 0) {
-                try (ByteArrayInputStream bais = new ByteArrayInputStream(bodyBytes);
-                     GZIPInputStream gis = new GZIPInputStream(bais);
-                     ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
-                    byte[] buffer = new byte[4096];
-                    int read;
-                    while ((read = gis.read(buffer)) != -1) {
-                        baos.write(buffer, 0, read);
-                    }
-                    decompressed = baos.toByteArray();
-                } catch (IOException e) {
-                    System.err.println("GZIP unpack failed for url: " + url);
-                    throw e;
+        while (true) {
+            Long until = taintedHosts.get(hostKey);
+            long now = System.currentTimeMillis();
+            if (until != null && now < until) {
+                long sleepMs = until - now;
+                System.out.println("Host " + hostKey + " is tainted until " + until + " (sleeping " + sleepMs + " ms)");
+                try {
+                    Thread.sleep(sleepMs);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new IOException("Interrupted while waiting for tainted host: " + hostKey, e);
                 }
-            } else if (contentEncoding != null && contentEncoding.toLowerCase(Locale.ROOT).contains("br")) {
-                throw new IOException("Received brotli content for url: " + url + " but no decoder configured");
             }
 
-            String body = decompressed == null ? "" : new String(decompressed, StandardCharsets.UTF_8);
-
-            String low = body.toLowerCase(Locale.ROOT);
-            if (low.contains("human verification") || low.contains("gokuprops") || low.contains("awswaf") || low.contains("recaptcha")) {
-                taintedHosts.put(hostKey, System.currentTimeMillis() + TAINT_MILLIS);
-                System.out.println("capcha " + hostKey + ", tainting for " + (TAINT_MILLIS/1000) + " minutes");
-                throw new IOException("Verification detected for host: " + hostKey);
+            if (url.contains("myanimelist.net")) {
+                MAL_RATE_LIMITER.acquire();
             }
 
-            return new DecodedResponse(status, body, contentEncoding, contentType);
+            OkHttpClient client = HTTP_CLIENT_MANAGER.getClient();
+            Request req = requestBuild(url);
+
+            try (Response resp = client.newCall(req).execute()) {
+                int status = resp.code();
+                byte[] bodyBytes = resp.body() == null ? new byte[0] : resp.body().bytes();
+                String contentEncoding = resp.header("Content-Encoding", "");
+                String contentType = resp.header("Content-Type", "");
+
+                System.out.println("URL: " + url + " -> status=" + status + ", bytes=" +
+                        (bodyBytes==null?0:bodyBytes.length)
+                        + ", enc=" + contentEncoding + ", type=" + contentType);
+
+                byte[] decompressed = bodyBytes;
+                boolean isGzip = false;
+                try {
+                    String encLower = contentEncoding == null ? "" : contentEncoding.toLowerCase(Locale.ROOT);
+                    isGzip = encLower.contains("gzip")
+                            || (bodyBytes != null && bodyBytes.length >= 2 && (bodyBytes[0] ==
+                            (byte)0x1F && bodyBytes[1] == (byte)0x8B));
+                } catch (Exception ignored) {}
+
+                if (isGzip && bodyBytes != null && bodyBytes.length > 0) {
+                    try (ByteArrayInputStream bais = new ByteArrayInputStream(bodyBytes);
+                         GZIPInputStream gis = new GZIPInputStream(bais);
+                         ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
+                        byte[] buffer = new byte[4096];
+                        int read;
+                        while ((read = gis.read(buffer)) != -1) {
+                            baos.write(buffer, 0, read);
+                        }
+                        decompressed = baos.toByteArray();
+                    } catch (IOException e) {
+                        System.err.println("GZIP unpack failed for url: " + url);
+                        throw e;
+                    }
+                } else if (contentEncoding != null && contentEncoding.toLowerCase(Locale.ROOT).contains("br")) {
+                    throw new IOException("Received brotli content for url: " + url + " but no decoder configured");
+                }
+
+                String body = decompressed == null ? "" : new String(decompressed, StandardCharsets.UTF_8);
+
+                String low = body.toLowerCase(Locale.ROOT);
+                if (low.contains("human verification") || low.contains("gokuprops") || low.contains("awswaf")
+                        || low.contains("recaptcha")) {
+                    long taintUntil = System.currentTimeMillis() + TAINT_MILLIS;
+                    taintedHosts.put(hostKey, taintUntil);
+                    System.out.println("Captcha/verification detected for host " + hostKey +
+                            ". Tainting until " + taintUntil);
+
+                    captchaRetries++;
+                    if (captchaRetries >= MAX_CAPTCHA_RETRIES) {
+                        throw new IOException("Verification detected for host: " + hostKey +
+                                " after " + captchaRetries + " retries");
+                    }
+                    try {
+                        System.out.println("Sleeping for " + TAINT_MILLIS +
+                                " ms before retrying " + url);
+                        Thread.sleep(TAINT_MILLIS);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        throw new IOException("Interrupted while waiting for captcha cooldown for host: " + hostKey, e);
+                    }
+                    continue;
+                }
+
+                return new DecodedResponse(status, body, contentEncoding, contentType);
+            } catch (IOException ioe) {
+                throw ioe;
+            }
         }
     }
+
 
     private static Request requestBuild(String url) {
         String ua = USER_AGENTS.get((int)(Math.random() * USER_AGENTS.size()));

@@ -25,10 +25,10 @@ public class UserAnimeStatMapper {
         if (dto == null || dto.animeId == null) return;
 
         Data.Anime animeEntity = em.find(Data.Anime.class, dto.animeId);
+
         if (animeEntity == null) {
-            animeEntity = new Data.Anime();
-            animeEntity.setMalId(dto.animeId);
-            em.persist(animeEntity);
+            System.out.println("Skipping anime with malId=" + dto.animeId + " - not found in database");
+            return;
         }
 
         UserAnimeStat.UserAnimeKey key = new UserAnimeStat.UserAnimeKey();
