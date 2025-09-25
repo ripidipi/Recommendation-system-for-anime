@@ -18,7 +18,7 @@ public class DataOutputToFile {
     );
     private static List<String> ANIME_COLUMNS = List.of(
             "mal_id","episodes","score","scored_by", "rating", "season", "type",
-            "title", "synopsis", "status"
+            "title", "synopsis", "status", "year"
     );
 
     private static final List<String> ANIME_JOINS_COLUMNS = List.of(
@@ -42,7 +42,7 @@ public class DataOutputToFile {
     private static final List<String> ANIME_EVALUATION_JOIN_COLUMNS = List.of();
 
     private static List<String> ANIME_EVALUATION_FILTERS = List.of("us.completed > ?", "us.total_entries > ?",
-            "r.score IS NOT NULL", "us.mean_score BETWEEN 4 AND 9");
+            "r.score IS NOT NULL", "us.mean_score BETWEEN 3 AND 9.5");
     private static List<String> ANIME_FILTERS = List.of("a.approved = true");
 
     public void setUserAnimeColumns(List<String> userAnimeColumns) {

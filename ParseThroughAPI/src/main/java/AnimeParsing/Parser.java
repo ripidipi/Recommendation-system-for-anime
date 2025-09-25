@@ -28,7 +28,7 @@ public class Parser {
     }
 
     public static void saveAnimeToDB(Anime dto) {
-        EntityManager em = emf.createEntityManager();
+        EntityManager em = getEmf().createEntityManager();
         EntityTransaction tx = em.getTransaction();
 
         if (dto.title == null || dto.title.isBlank()) {

@@ -36,6 +36,8 @@
         <instancio.version>4.8.0</instancio.version>
         <h2.version>2.1.214</h2.version>
         <bitbuddy.version>1.17.6</bitbuddy.version>
+        <mockwebserver.version>4.11.0</mockwebserver.version>
+        <awaitility.version>4.2.0</awaitility.version>
 
         <!-- Plugins -->
         <maven.compiler.plugin.version>3.11.0</maven.compiler.plugin.version>
@@ -199,6 +201,20 @@
             <scope>test</scope>
         </dependency>
 
+        <dependency>
+            <groupId>com.squareup.okhttp3</groupId>
+            <artifactId>mockwebserver</artifactId>
+            <version>${mockwebserver.version}</version>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.awaitility</groupId>
+            <artifactId>awaitility</artifactId>
+            <version>${awaitility.version}</version>
+            <scope>test</scope>
+        </dependency>
+
     </dependencies>
 
     <build>
@@ -235,18 +251,70 @@
                 <artifactId>maven-shade-plugin</artifactId>
                 <version>${maven.shade.plugin.version}</version>
                 <executions>
+                    <!-- Fetching list (FetchingListOfAnime) -->
                     <execution>
+                        <id>shade-fetch-list</id>
                         <phase>package</phase>
                         <goals><goal>shade</goal></goals>
                         <configuration>
+                            <finalName>${project.artifactId}-fetch-list</finalName>
                             <createDependencyReducedPom>false</createDependencyReducedPom>
                             <transformers>
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
-                                    <mainClass>Scripts.DataExporter</mainClass>
+                                    <mainClass>FetchingListOfAnime</mainClass>
                                 </transformer>
                             </transformers>
                         </configuration>
                     </execution>
+
+                    <!-- Fetching user/stats (FetchingUserAndStats) -->
+                    <execution>
+                        <id>shade-fetch-user</id>
+                        <phase>package</phase>
+                        <goals><goal>shade</goal></goals>
+                        <configuration>
+                            <finalName>${project.artifactId}-fetch-user</finalName>
+                            <createDependencyReducedPom>false</createDependencyReducedPom>
+                            <transformers>
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+                                    <mainClass>FetchingUserAndStats</mainClass>
+                                </transformer>
+                            </transformers>
+                        </configuration>
+                    </execution>
+
+                    <!-- Save data (SaveDataFromSQLToParquetFile) -->
+                    <execution>
+                        <id>shade-save-data</id>
+                        <phase>package</phase>
+                        <goals><goal>shade</goal></goals>
+                        <configuration>
+                            <finalName>${project.artifactId}-savedata</finalName>
+                            <createDependencyReducedPom>false</createDependencyReducedPom>
+                            <transformers>
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+                                    <mainClass>SaveDataFromSQLToParquetFile</mainClass>
+                                </transformer>
+                            </transformers>
+                        </configuration>
+                    </execution>
+
+                    <!-- Restore integrity (RestoringDataIntegrity) -->
+                    <execution>
+                        <id>shade-restore</id>
+                        <phase>package</phase>
+                        <goals><goal>shade</goal></goals>
+                        <configuration>
+                            <finalName>${project.artifactId}-restore</finalName>
+                            <createDependencyReducedPom>false</createDependencyReducedPom>
+                            <transformers>
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+                                    <mainClass>RestoringDataIntegrity</mainClass>
+                                </transformer>
+                            </transformers>
+                        </configuration>
+                    </execution>
+
                 </executions>
             </plugin>
 
