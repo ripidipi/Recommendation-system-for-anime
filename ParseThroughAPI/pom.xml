@@ -36,6 +36,8 @@
         <instancio.version>4.8.0</instancio.version>
         <h2.version>2.1.214</h2.version>
         <bitbuddy.version>1.17.6</bitbuddy.version>
+        <mockwebserver.version>4.11.0</mockwebserver.version>
+        <awaitility.version>4.2.0</awaitility.version>
 
         <!-- Plugins -->
         <maven.compiler.plugin.version>3.11.0</maven.compiler.plugin.version>
@@ -196,6 +198,20 @@
             <groupId>net.bytebuddy</groupId>
             <artifactId>byte-buddy-agent</artifactId>
             <version>${bitbuddy.version}</version>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>com.squareup.okhttp3</groupId>
+            <artifactId>mockwebserver</artifactId>
+            <version>${mockwebserver.version}</version>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.awaitility</groupId>
+            <artifactId>awaitility</artifactId>
+            <version>${awaitility.version}</version>
             <scope>test</scope>
         </dependency>
 
