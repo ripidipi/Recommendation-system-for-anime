@@ -11,6 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       MAVEN_OPTS: -Xmx2G
+    timeout-minutes: 60
 
     steps:
       - name: Checkout repository
@@ -27,15 +28,28 @@ jobs:
 
       - name: Build ParseThroughAPI module
         working-directory: ParseThroughAPI
-        run: mvn -B -ntp package
+        run: mvn -B -ntp -f pom.xml verify
 
       - name: Upload built JAR(s)
         if: success()
         uses: actions/upload-artifact@v4
         with:
           name: built-jars
-          path: ParseThroughAPI/target/*.jar
+          path: |
+            ParseThroughAPI/target/*.jar
+            ParseThroughAPI/target/*-jar-with-dependencies.jar
+
+      - name: Upload test reports (Surefire / Failsafe)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: |
+            ParseThroughAPI/target/surefire-reports/**
+            ParseThroughAPI/target/failsafe-reports/**
 
       - name: Update dependency graph (optional)
         if: success()
+        working-directory: ParseThroughAPI
         uses: advanced-security/maven-dependency-submission-action@571e99aab1055c2e71a1e2309b9691de18d6b7d6
+        continue-on-error: true
