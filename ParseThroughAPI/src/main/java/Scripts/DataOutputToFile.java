@@ -14,7 +14,7 @@ public class DataOutputToFile {
     private final SimpleDataExtract extractor;
 
     private static List<String> USER_ANIME_COLUMNS = List.of(
-            "user_id", "anime_id", "score", "status"
+            "user_id", "anime_id", "score", "status", "last_updated"
     );
     private static List<String> ANIME_COLUMNS = List.of(
             "mal_id","episodes","score","scored_by", "rating", "season", "type",
