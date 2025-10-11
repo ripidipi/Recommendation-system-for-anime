@@ -43,9 +43,9 @@ public class SaveDataFromSQLToParquetFile {
         System.out.println(" DB_URL=" + dbUrl);
         System.out.println(" DB_USER=" + dbUser);
         System.out.println(" minimalNumberOfAnimeInLists=" +
-                outFile.getMINIMUM_NUMBER_OF_ANIME_IN_USER_LISTS());
+                outFile.getMinimumNumberOfAnimeInUserLists());
         System.out.println(" minimalNumberOfCompletedAnimeInLists=" +
-                outFile.getMINIMUM_NUMBER_OF_COMPLETED_ANIME_IN_USER_LISTS());
+                outFile.getMinimumNumberOfCompletedAnimeInUserLists());
 
         if (animeColumns != null) {
             outFile.setAnimeColumns(List.of(animeColumns.split(",")));
@@ -64,7 +64,7 @@ public class SaveDataFromSQLToParquetFile {
             System.out.println("New users evaluation filters are set up: " + outFile.getAnimeEvaluationFilters());
         }
         if (showSQL) {
-            outFile.setSHOW_SQL(true);
+            outFile.setIsShowSql(true);
             System.out.println("SQl will be displayed in the terminal");
         }
         File outDir = new File("out");

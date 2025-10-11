@@ -124,7 +124,6 @@ public class FetchTop {
         }
     }
 
-
     public static int countPages() {
         if (!pageExists(1)) return 0;
 

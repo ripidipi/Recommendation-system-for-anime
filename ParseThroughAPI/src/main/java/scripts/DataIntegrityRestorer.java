@@ -3,6 +3,7 @@ package scripts;
 import data.UserStat;
 import data.Users;
 import mapper.UserStatMapper;
+import mapper.UserMapper;
 import user_parsing.FetchUsers;
 import user_parsing.Parser;
 import user_parsing.StatsData;
@@ -45,7 +46,7 @@ public class DataIntegrityRestorer {
 
                 for (Users user : users) {
                     try {
-                        processUser(user.getMalId());
+                        processUserById(user.getMalId());
                     } catch (Exception ex) {
                         System.out.println("Error processing user " + user.getMalId() +
                                 " (" + user.getUsername() + "): " + ex);
@@ -61,18 +62,41 @@ public class DataIntegrityRestorer {
         }
     }
 
-    public void processUser(Integer malId) {
+    public void processUserById(Integer malId) {
         if (malId == null) return;
 
+        UserStatsResult r = readUserAndStats(malId);
+        if (r == null || r.user == null) {
+            System.out.println("User with malId=" + malId + " not found, skipping");
+            return;
+        }
+
+        System.out.printf("User %s (malId=%d): nativeCount=%d, reported=%d%n",
+                r.user.getUsername(), malId, r.nativeCount, r.reported);
+
+        double diffPercent = computeDiffPercent(r.nativeCount, r.reported);
+
+        if (diffPercent > thresholdPercent) {
+            handleResyncAndUpdate(r.user, malId, diffPercent);
+            return;
+        }
+
+        if (r.user.getUrl() == null) {
+            System.out.println("Missing profile fields for user " + r.user.getUsername() + ", updating profile only.");
+            refreshProfileOnly(r.user.getUsername());
+        }
+    }
+
+    private UserStatsResult readUserAndStats(int malId) {
         EntityManager em = emf.createEntityManager();
+        EntityTransaction tx = em.getTransaction();
         try {
-            em.getTransaction().begin();
+            tx.begin();
 
             Users user = em.find(Users.class, malId);
             if (user == null) {
-                System.out.println("User with malId=" + malId + " not found, skipping");
-                em.getTransaction().commit();
-                return;
+                tx.commit();
+                return new UserStatsResult(null, 0L, 0);
             }
 
             Number nativeCountNum = (Number) em.createNativeQuery(
@@ -89,105 +113,99 @@ public class DataIntegrityRestorer {
                     .orElse(null);
             int reported = stat != null ? stat.getTotalEntries() : 0;
 
-            em.getTransaction().commit();
-
-            System.out.printf("User %s (malId=%d): nativeCount=%d, reported=%d%n",
-                    user.getUsername(), malId, countNative, reported);
-
-            long dbCount = countNative;
-            double diffPercent;
-            if (reported == 0) {
-                diffPercent = dbCount > 0 ? 1.0 : 0.0;
-            } else {
-                diffPercent = Math.abs(dbCount - reported) / (double) reported;
-            }
-
-            if (diffPercent > thresholdPercent) {
-                System.out.println("MISMATCH (diff=" + (diffPercent * 100) +
-                        "%). Starting resync for " + user.getUsername());
-                boolean resyncOk = resyncService.resyncUserUpsertFetchWithRetries(user.getUsername(),
-                        malId, 3, 500);
-                if (!resyncOk) {
-                    System.out.println("Resync failed for " + user.getUsername() + ".");
-                    if (deleteOnFailure) {
-                        System.out.println("deleteOnFailure is enabled — deleting user data for malId=" + malId);
-                        try {
-                            resyncService.deleteUserData(malId);
-                        } catch (Exception e) {
-                            System.out.println("Failed to delete data after resync failure for " + malId + ": " + e.getMessage());
-                            e.printStackTrace();
-                        }
-                    } else {
-                        System.out.println("deleteOnFailure is disabled — keeping existing data for " + user.getUsername());
-                    }
-                    return;
-                }
-                System.out.println("Resync succeeded for " + user.getUsername() +
-                        "Now updating UserStat.totalEntries from remote stats");
-
-                try {
-                    StatsData freshStats = FetchUsers.fetchUserStats(user.getUsername());
-                    if (freshStats != null) {
-                        EntityManager em2 = emf.createEntityManager();
-                        EntityTransaction tx2 = em2.getTransaction();
-                        try {
-                            tx2.begin();
-                            Users mergedUser = em2.find(Users.class, malId);
-                            var userStat = UserStatMapper.mapOrCreate(freshStats, mergedUser, em2);
-                            em2.merge(userStat);
-                            tx2.commit();
-                            System.out.println("UserStat updated for " + user.getUsername());
-                        } catch (Exception e) {
-                            if (tx2.isActive()) tx2.rollback();
-                            System.out.println("Failed to update UserStat for " +
-                                    user.getUsername() + ": " + e.getMessage());
-                            e.printStackTrace();
-                            if (deleteOnFailure) {
-                                System.out.println("deleteOnFailure is enabled — deleting user data due to failed UserStat update for malId=" + malId);
-                                try { resyncService.deleteUserData(malId); } catch (Exception ex) {
-                                    System.out.println("Failed to delete data after UserStat update failure for " + malId + ": " + ex.getMessage());
-                                    ex.printStackTrace();
-                                }
-                            }
-                        } finally {
-                            em2.close();
-                        }
-                    } else {
-                        System.out.println("Could not fetch remote stats to update user_stat for " +
-                                user.getUsername());
-                        if (deleteOnFailure) {
-                            System.out.println("deleteOnFailure is enabled — deleting user data because fresh stats couldn't be fetched for malId=" + malId);
-                            try { resyncService.deleteUserData(malId); } catch (Exception ex) {
-                                System.out.println("Failed to delete data after missing fresh stats for " + malId + ": " + ex.getMessage());
-                                ex.printStackTrace();
-                            }
-                        }
-                    }
-                } catch (Exception e) {
-                    System.out.println("Error fetching remote stats after resync for " +
-                            user.getUsername() + ": " + e.getMessage());
-                    e.printStackTrace();
-                    if (deleteOnFailure) {
-                        System.out.println("deleteOnFailure is enabled — deleting user data due to exception when fetching fresh stats for malId=" + malId);
-                        try { resyncService.deleteUserData(malId); } catch (Exception ex) {
-                            System.out.println("Failed to delete data after exception fetching fresh stats for " + malId + ": " + ex.getMessage());
-                            ex.printStackTrace();
-                        }
-                    }
-                }
-                return;
-            }
-
-            boolean missing = user.getUrl() == null;
-            if (missing) {
-                System.out.println("Missing profile fields for user " +
-                        user.getUsername() + ", updating profile only.");
-                refreshProfileOnly(user.getUsername());
-            }
-
+            tx.commit();
+            return new UserStatsResult(user, countNative, reported);
+        } catch (RuntimeException e) {
+            if (tx.isActive()) tx.rollback();
+            throw e;
         } finally {
-            if (em.getTransaction().isActive()) em.getTransaction().rollback();
             em.close();
+        }
+    }
+
+    private double computeDiffPercent(long dbCount, int reported) {
+        if (reported == 0) {
+            return dbCount > 0 ? 1.0 : 0.0;
+        }
+        return Math.abs(dbCount - reported) / (double) reported;
+    }
+
+    private void handleResyncAndUpdate(Users user, int malId, double diffPercent) {
+        System.out.println("MISMATCH (diff=" + (diffPercent * 100) + "%). Starting resync for " + user.getUsername());
+        boolean resyncOk = false;
+        try {
+            resyncOk = resyncService.resyncUserUpsertFetchWithRetries(user.getUsername(), malId, 3, 500);
+        } catch (Exception e) {
+            System.out.println("Resync threw an exception for " + user.getUsername() + ": " + e.getMessage());
+            e.printStackTrace();
+        }
+
+        if (!resyncOk) {
+            System.out.println("Resync failed for " + user.getUsername() + ".");
+            if (deleteOnFailure) {
+                System.out.println("deleteOnFailure is enabled — deleting user data for malId=" + malId);
+                safeDeleteUserData(malId);
+            } else {
+                System.out.println("deleteOnFailure is disabled — keeping existing data for " + user.getUsername());
+            }
+            return;
+        }
+
+        System.out.println("Resync succeeded for " + user.getUsername() + ". Now updating UserStat.totalEntries from remote stats");
+        updateUserStatFromRemote(user, malId);
+    }
+
+    private void updateUserStatFromRemote(Users user, int malId) {
+        try {
+            StatsData freshStats = FetchUsers.fetchUserStats(user.getUsername());
+            if (freshStats != null) {
+                updateUserStatInTx(freshStats, malId);
+                System.out.println("UserStat updated for " + user.getUsername());
+            } else {
+                System.out.println("Could not fetch remote stats to update user_stat for " + user.getUsername());
+                if (deleteOnFailure) {
+                    System.out.println("deleteOnFailure is enabled — deleting user data because fresh stats couldn't be fetched for malId=" + malId);
+                    safeDeleteUserData(malId);
+                }
+            }
+        } catch (Exception e) {
+            System.out.println("Error fetching remote stats after resync for " + user.getUsername() + ": " + e.getMessage());
+            e.printStackTrace();
+            if (deleteOnFailure) {
+                System.out.println("deleteOnFailure is enabled — deleting user data due to exception when fetching fresh stats for malId=" + malId);
+                safeDeleteUserData(malId);
+            }
+        }
+    }
+
+    private void updateUserStatInTx(StatsData freshStats, int malId) {
+        EntityManager em2 = emf.createEntityManager();
+        EntityTransaction tx2 = em2.getTransaction();
+        try {
+            tx2.begin();
+            Users mergedUser = em2.find(Users.class, malId);
+            var userStat = UserStatMapper.mapOrCreate(freshStats, mergedUser, em2);
+            em2.merge(userStat);
+            tx2.commit();
+        } catch (Exception e) {
+            if (tx2.isActive()) tx2.rollback();
+            System.out.println("Failed to update UserStat for malId=" + malId + ": " + e.getMessage());
+            e.printStackTrace();
+            if (deleteOnFailure) {
+                System.out.println("deleteOnFailure is enabled — deleting user data due to failed UserStat update for malId=" + malId);
+                safeDeleteUserData(malId);
+            }
+        } finally {
+            em2.close();
+        }
+    }
+
+    private void safeDeleteUserData(int malId) {
+        try {
+            resyncService.deleteUserData(malId);
+        } catch (Exception ex) {
+            System.out.println("Failed to delete data for " + malId + ": " + ex.getMessage());
+            ex.printStackTrace();
         }
     }
 
@@ -195,25 +213,40 @@ public class DataIntegrityRestorer {
         try {
             user_parsing.UserLite dto = FetchUsers.fetchUserByUsername(username);
             user_parsing.StatsData stats = FetchUsers.fetchUserStats(dto.username);
-            EntityManager em = emf.createEntityManager();
-            EntityTransaction tx = em.getTransaction();
-            try {
-                tx.begin();
-                var userEntity = mapper.UserMapper.mapOrCreate(dto, em);
-                var userStat = mapper.UserStatMapper.mapOrCreate(stats, userEntity, em);
-                em.merge(userStat);
-                tx.commit();
-                System.out.println("Profile-only update committed for " + username);
-            } catch (Exception e) {
-                if (tx.isActive()) tx.rollback();
-                throw e;
-            } finally {
-                em.close();
-            }
+            persistProfileOnly(dto, stats);
         } catch (Exception e) {
             System.out.println("Failed profile-only refresh for " + username + ": " + e);
             e.printStackTrace();
         }
     }
 
+    private void persistProfileOnly(user_parsing.UserLite dto, user_parsing.StatsData stats) {
+        EntityManager em = emf.createEntityManager();
+        EntityTransaction tx = em.getTransaction();
+        try {
+            tx.begin();
+            var userEntity = UserMapper.mapOrCreate(dto, em);
+            var userStat = UserStatMapper.mapOrCreate(stats, userEntity, em);
+            em.merge(userStat);
+            tx.commit();
+            System.out.println("Profile-only update committed for " + dto.username);
+        } catch (Exception e) {
+            if (tx.isActive()) tx.rollback();
+            throw e;
+        } finally {
+            em.close();
+        }
+    }
+
+    private static class UserStatsResult {
+        final Users user;
+        final long nativeCount;
+        final int reported;
+
+        UserStatsResult(Users user, long nativeCount, int reported) {
+            this.user = user;
+            this.nativeCount = nativeCount;
+            this.reported = reported;
+        }
+    }
 }

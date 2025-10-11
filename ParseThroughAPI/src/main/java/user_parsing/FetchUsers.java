@@ -120,7 +120,7 @@ public class FetchUsers {
                         }
 
                         saveUserAndStats(curUser, sd);
-                        dataIntegrityRestorer.processUser(curUser.malId);
+                        dataIntegrityRestorer.processUserById(curUser.malId);
 
                         try { Thread.sleep(BETWEEN_TASK_SLEEP_MS); } catch (InterruptedException ie) {
                             Thread.currentThread().interrupt();
