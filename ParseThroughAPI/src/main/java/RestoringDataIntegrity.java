@@ -1,4 +1,4 @@
-import Scripts.DataIntegrityRestorer;
+import scripts.DataIntegrityRestorer;
 
 public class RestoringDataIntegrity {
 

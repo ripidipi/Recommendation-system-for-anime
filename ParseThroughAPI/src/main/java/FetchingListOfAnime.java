@@ -1,4 +1,4 @@
-import Scripts.FetchAndPersist;
+import scripts.FetchAndPersist;
 
 public class FetchingListOfAnime {
 
