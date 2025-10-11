@@ -19,12 +19,12 @@
 
 ```
 src/main/java/
-├─ AnimeParsing/        # парсинг аниме (Jikan)
-├─ UserParsing/         # парсинг пользователей и списков (MAL)
-├─ Data/                # JPA-сущности (Anime, Users, UserStat, ...)
-├─ Mapper/              # Mapper'ы DTO -> JPA entity
-├─ Scripts/             # утилиты: FetchAndPersist, DataIntegrityRestorer, UserResyncService, DataOutputToFile
-├─ Utils/               # утилиты: OkHttpClientManager, DateTime, SimpleDataExtract, SchemaGenerator
+├─ anime_parsing/        # парсинг аниме (Jikan)
+├─ user_parsing/         # парсинг пользователей и списков (MAL)
+├─ data/                # JPA-сущности (Anime, Users, UserStat, ...)
+├─ mapper/              # mapper'ы DTO -> JPA entity
+├─ scripts/             # утилиты: FetchAndPersist, DataIntegrityRestorer, UserResyncService, DataOutputToFile
+├─ utils/               # утилиты: OkHttpClientManager, DateTime, SimpleDataExtract, SchemaGenerator
 └─ (несколько mains)    # запусковые классы: FetchingListOfAnime, FetchingUserAndStats, RestoringDataIntegrity, SaveDataFromSQLToParquetFile
 ```
 
@@ -41,7 +41,7 @@ src/main/java/
 * `user_anime_stat` — записи о взаимодействии пользователя с аниме (composite PK: user_id, anime_id)
 * join-таблицы M:N: `anime_producer`, `anime_licensor`, `anime_studio`, `anime_genre`, `anime_theme`, `anime_demographic`
 
-Полное описание колонок и типов — в JPA-сущностях `Data.*` (см. `Data.Anime`, `Data.Producer`, `Data.Genre`, `Data.Demographic`, `Data.Users`, `Data.UserStat`, `Data.UserAnimeStat`).
+Полное описание колонок и типов — в JPA-сущностях `data.*` (см. `data.Anime`, `data.Producer`, `data.Genre`, `data.Demographic`, `data.Users`, `data.UserStat`, `data.UserAnimeStat`).
 
 ---
 
@@ -115,7 +115,7 @@ mvn exec:java -Dexec.mainClass="SaveDataFromSQLToParquetFile"
 Генерация схемы JPA (полезно для локальной отладки):
 
 ```bash
-mvn exec:java -Dexec.mainClass="Utils.SchemaGenerator"
+mvn exec:java -Dexec.mainClass="utils.SchemaGenerator"
 ```
 ---
 
@@ -137,7 +137,7 @@ mvn exec:java -Dexec.mainClass="Utils.SchemaGenerator"
 
 ### 4) Парсинг дат/времён
 
-`Utils.DateTime` умеет парсить ISO-форматы и epoch seconds; используется при переводе timestamp полей пользователей.
+`utils.DateTime` умеет парсить ISO-форматы и epoch seconds; используется при переводе timestamp полей пользователей.
 
 ### 5) OkHttpClient lifecycle
 

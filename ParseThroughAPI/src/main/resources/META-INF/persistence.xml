@@ -3,12 +3,12 @@
              version="3.0">
     <persistence-unit name="animePU" transaction-type="RESOURCE_LOCAL">
 
-        <class>Data.Anime</class>
-        <class>Data.Producer</class>
-        <class>Data.Genre</class>
-        <class>Data.Demographic</class>
-        <class>Data.Users</class>
-        <class>Data.UserStat</class>
+        <class>data.Anime</class>
+        <class>data.Producer</class>
+        <class>data.Genre</class>
+        <class>data.Demographic</class>
+        <class>data.Users</class>
+        <class>data.UserStat</class>
 
         <properties>
             <!-- JDBC -->

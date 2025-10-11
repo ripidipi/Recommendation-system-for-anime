@@ -1,4 +1,4 @@
-import Scripts.DataOutputToFile;
+import scripts.DataOutputToFile;
 
 import java.io.File;
 import java.util.List;
