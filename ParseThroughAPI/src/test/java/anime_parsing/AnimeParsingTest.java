@@ -13,6 +13,7 @@ import java.util.Random;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.AssertionsForClassTypes.within;
+import static org.junit.jupiter.api.Assertions.assertAll;
 
 class AnimeParsingTest {
 
@@ -23,19 +24,20 @@ class AnimeParsingTest {
         Anime anime = Instancio.of(Anime.class)
                 .withSeed(1111L)
                 .create();
-
-        assertThat(anime.getTitle()).isNotNull();
-        assertThat(anime.getProducers()).isNotNull();
-        assertThat(anime.getGenres()).isNotEmpty();
-        assertThat(anime.getEpisodes()).isNotNull();
-        assertThat(anime.getApproved()).isNotNull();
-        assertThat(anime.getMalId()).isNotNull();
-        assertThat(anime.getUrl()).isNotNull();
-        assertThat(anime.getStatus()).isNotNull();
-        assertThat(anime.getScoredBy()).isNotNull();
-        assertThat(anime.getRating()).isNotNull();
-        assertThat(anime.getLicensors()).isNotNull();
-        assertThat(anime.getDemographics()).isNotNull();
+        assertAll(
+            () -> assertThat(anime.getTitle()).isNotNull(),
+            () -> assertThat(anime.getProducers()).isNotNull(),
+            () -> assertThat(anime.getGenres()).isNotEmpty(),
+            () -> assertThat(anime.getEpisodes()).isNotNull(),
+            () -> assertThat(anime.getApproved()).isNotNull(),
+            () -> assertThat(anime.getMalId()).isNotNull(),
+            () -> assertThat(anime.getUrl()).isNotNull(),
+            () -> assertThat(anime.getStatus()).isNotNull(),
+            () -> assertThat(anime.getScoredBy()).isNotNull(),
+            () -> assertThat(anime.getRating()).isNotNull(),
+            () -> assertThat(anime.getLicensors()).isNotNull(),
+            () -> assertThat(anime.getDemographics()).isNotNull()
+        );
     }
 
     @RepeatedTest(100)
@@ -58,19 +60,21 @@ class AnimeParsingTest {
 
         Anime anime = mapper.readValue(json, Anime.class);
 
-        assertThat(anime.malId).isEqualTo(52991);
-        assertThat(anime.title).isEqualTo("Sousou no Frieren");
-        assertThat(anime.titleEnglish).isEqualTo("Frieren: Beyond Journey's End");
-        assertThat(anime.titleJapanese).isEqualTo("葬送のフリーレン");
-        assertThat(anime.episodes).isEqualTo(28);
-        assertThat(anime.score).isCloseTo(9.29, within(1e-4));
+        assertAll(
+                () -> assertThat(anime.malId).isEqualTo(52991),
+                () -> assertThat(anime.title).isEqualTo("Sousou no Frieren"),
+                () -> assertThat(anime.titleEnglish).isEqualTo("Frieren: Beyond Journey's End"),
+                () -> assertThat(anime.titleJapanese).isEqualTo("葬送のフリーレン"),
+                () -> assertThat(anime.episodes).isEqualTo(28),
+                () -> assertThat(anime.score).isCloseTo(9.29, within(1e-4)),
 
-        assertThat(anime.producers).extracting("name")
-                .contains("Aniplex", "Dentsu", "TOHO animation");
-        assertThat(anime.studios).extracting("name")
-                .contains("Madhouse");
-        assertThat(anime.genres).extracting("name")
-                .contains("Adventure", "Drama", "Fantasy");
+                () -> assertThat(anime.producers).extracting("name")
+                .contains("Aniplex", "Dentsu", "TOHO animation"),
+                () -> assertThat(anime.studios).extracting("name")
+                .contains("Madhouse"),
+                () -> assertThat(anime.genres).extracting("name")
+                .contains("Adventure", "Drama", "Fantasy")
+        );
     }
 
     @Test
