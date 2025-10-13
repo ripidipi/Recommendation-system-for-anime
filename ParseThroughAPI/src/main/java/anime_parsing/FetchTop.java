@@ -24,6 +24,7 @@ public class FetchTop {
             .setPropertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE)
             .findAndRegisterModules();
 
+    // TODO reduce complexity
     public static void fetchAndPersistAnime(int numberOfPages)  {
         final int POOL_SIZE = 7;
         final int MAX_RETRIES = 5;

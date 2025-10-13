@@ -30,7 +30,7 @@ public class SaveDataFromSQLToParquetFile {
                 "ANIME_FILTERS", null));
         String userFilters = System.getenv().getOrDefault(
                 "ANIME_EVALUATION_FILTERS", null);
-        Boolean showSQL = Boolean.parseBoolean(System.getenv().getOrDefault(
+        boolean showSQL = Boolean.parseBoolean(System.getenv().getOrDefault(
                 "SHOW_SQL", "true"));
 
         dbProps.setProperty("jdbc.url", dbUrl);

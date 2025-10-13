@@ -9,6 +9,7 @@ import jakarta.persistence.*;
 
 import java.io.IOException;
 
+// TODO refactory needs
 public class Parser {
 
     private static volatile EntityManagerFactory emf;
@@ -39,7 +40,7 @@ public class Parser {
 
             StatsData stats = FetchUsers.fetchUserStats(dto.username);
 
-            AnimeListPersist(dto, em);
+            animeListPersist(dto, em);
 
             UserStat userStats = UserStatMapper.mapOrCreate(stats, user, em);
             em.merge(userStats);
@@ -62,7 +63,7 @@ public class Parser {
 
             Users user = UserMapper.mapOrCreate(dto, em);
 
-            AnimeListPersist(dto, em);
+            animeListPersist(dto, em);
 
             UserStat userStats = UserStatMapper.mapOrCreate(stats, user, em);
             em.merge(userStats);
@@ -76,7 +77,7 @@ public class Parser {
         }
     }
 
-    private static void AnimeListPersist(UserLite dto, EntityManager em) throws IOException, InterruptedException {
+    private static void animeListPersist(UserLite dto, EntityManager em) throws IOException, InterruptedException {
         final int batchSize = 100;
         final int[] counter = {0};
 

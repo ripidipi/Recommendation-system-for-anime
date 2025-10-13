@@ -49,6 +49,7 @@ public class SimpleDataExtract implements AutoCloseable {
         }
     }
 
+    // TODO refactory needs
     public void exportQueryToParquet(
             String sql,
             List<Object> params,
@@ -160,6 +161,7 @@ public class SimpleDataExtract implements AutoCloseable {
         return record;
     }
 
+    // TODO make schema simpler
     private static Schema sqlTypeToAvroSchema(int sqlType) {
         switch (sqlType) {
             case Types.INTEGER:
@@ -185,6 +187,7 @@ public class SimpleDataExtract implements AutoCloseable {
         }
     }
 
+    // TODO refactory needs
     private static Object readTypedValue(ResultSet rs, int colIndex, int sqlType) throws SQLException {
         Object obj = rs.getObject(colIndex);
         switch (obj) {
@@ -214,8 +217,7 @@ public class SimpleDataExtract implements AutoCloseable {
             case Number number -> {
                 return obj;
             }
-            default -> {
-            }
+            default -> { }
         }
         return obj.toString();
     }

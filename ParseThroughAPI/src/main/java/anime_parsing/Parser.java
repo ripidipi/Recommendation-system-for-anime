@@ -5,7 +5,7 @@ import jakarta.persistence.*;
 
 import java.util.HashMap;
 import java.util.Map;
-
+// TODO refactory needs
 public class Parser {
 
     private static volatile EntityManagerFactory emf;
