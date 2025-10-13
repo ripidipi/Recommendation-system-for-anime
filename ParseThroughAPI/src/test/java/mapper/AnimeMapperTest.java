@@ -20,6 +20,7 @@ import java.util.Random;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.instancio.Select.field;
+import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
@@ -69,14 +70,15 @@ class AnimeMapperTest {
                     .findFirst()
                     .orElseThrow(() -> new AssertionError("No persisted producer with malId=" +
                             dtoProducer.malId + " — captured: " + allPersisted));
+            assertAll(
+                    () -> assertThat(persisted.getMalId()).isEqualTo(dtoProducer.malId),
+                    () -> assertThat(persisted.getName()).isEqualTo(dtoProducer.name),
+                    () -> assertThat(persisted.getUrl()).isEqualTo(dtoProducer.url),
 
-            assertThat(persisted.getMalId()).isEqualTo(dtoProducer.malId);
-            assertThat(persisted.getName()).isEqualTo(dtoProducer.name);
-            assertThat(persisted.getUrl()).isEqualTo(dtoProducer.url);
-
-            assertThat(entity.getMalId()).isEqualTo(dto.malId);
-            assertThat(entity.getTitle()).isEqualTo(dto.title);
-            assertThat(entity.getProducers()).isNotEmpty();
+                    () -> assertThat(entity.getMalId()).isEqualTo(dto.malId),
+                    () -> assertThat(entity.getTitle()).isEqualTo(dto.title),
+                    () -> assertThat(entity.getProducers()).isNotEmpty()
+            );
         } catch (AssertionError ae) {
             throw new AssertionError("Failed with seed = " + seed, ae);
         }
@@ -149,14 +151,15 @@ class AnimeMapperTest {
                     .findFirst()
                     .orElseThrow(() -> new AssertionError("No persisted genre with malId=" +
                             dtoGenre.malId + " — captured: " + allPersisted));
+            assertAll(
+                () -> assertThat(persisted.getMalId()).isEqualTo(dtoGenre.malId),
+                () -> assertThat(persisted.getName()).isEqualTo(dtoGenre.name),
+                () -> assertThat(persisted.getUrl()).isEqualTo(dtoGenre.url),
 
-            assertThat(persisted.getMalId()).isEqualTo(dtoGenre.malId);
-            assertThat(persisted.getName()).isEqualTo(dtoGenre.name);
-            assertThat(persisted.getUrl()).isEqualTo(dtoGenre.url);
-
-            assertThat(entity.getMalId()).isEqualTo(dto.malId);
-            assertThat(entity.getTitle()).isEqualTo(dto.title);
-            assertThat(entity.getGenres()).isNotEmpty();
+                () -> assertThat(entity.getMalId()).isEqualTo(dto.malId),
+                () -> assertThat(entity.getTitle()).isEqualTo(dto.title),
+                () -> assertThat(entity.getGenres()).isNotEmpty()
+            );
         } catch (AssertionError ae) {
             throw new AssertionError("Failed with seed = " + seed, ae);
         }
@@ -230,13 +233,15 @@ class AnimeMapperTest {
                     .orElseThrow(() -> new AssertionError("No persisted demographic with malId=" +
                             dtoDemographic.malId + " — captured: " + allPersisted));
 
-            assertThat(persisted.getMalId()).isEqualTo(dtoDemographic.malId);
-            assertThat(persisted.getName()).isEqualTo(dtoDemographic.name);
-            assertThat(persisted.getUrl()).isEqualTo(dtoDemographic.url);
+            assertAll(
+                    () -> assertThat(persisted.getMalId()).isEqualTo(dtoDemographic.malId),
+                    () -> assertThat(persisted.getName()).isEqualTo(dtoDemographic.name),
+                    () -> assertThat(persisted.getUrl()).isEqualTo(dtoDemographic.url),
 
-            assertThat(entity.getMalId()).isEqualTo(dto.malId);
-            assertThat(entity.getTitle()).isEqualTo(dto.title);
-            assertThat(entity.getDemographics()).isNotEmpty();
+                    () -> assertThat(entity.getMalId()).isEqualTo(dto.malId),
+                    () -> assertThat(entity.getTitle()).isEqualTo(dto.title),
+                    () -> assertThat(entity.getDemographics()).isNotEmpty()
+            );
         } catch (AssertionError ae) {
             throw new AssertionError("Failed with seed = " + seed, ae);
         }
@@ -293,17 +298,18 @@ class AnimeMapperTest {
         dto.titleJapanese = "テストタイトル";
 
         data.Anime entity = AnimeMapper.map(dto, em);
-
-        assertThat(entity).isNotNull();
-        assertThat(entity.getMalId()).isEqualTo(42);
-        assertThat(entity.getTitle()).isEqualTo("Test Title");
-        assertThat(entity.getUrl()).isEqualTo("https://e");
-        assertThat(entity.getScore()).isEqualTo(8.77);
-        assertThat(entity.getYear()).isEqualTo(2024);
-        assertThat(entity.getEpisodes()).isEqualTo(12);
-        assertThat(entity.getApproved()).isTrue();
-        assertThat(entity.getTitleEnglish()).isEqualTo("Test Title EN");
-        assertThat(entity.getTitleJapanese()).isEqualTo("テストタイトル");
+        assertAll(
+                () -> assertThat(entity).isNotNull(),
+                () -> assertThat(entity.getMalId()).isEqualTo(42),
+                () -> assertThat(entity.getTitle()).isEqualTo("Test Title"),
+                () -> assertThat(entity.getUrl()).isEqualTo("https://e"),
+                () -> assertThat(entity.getScore()).isEqualTo(8.77),
+                () -> assertThat(entity.getYear()).isEqualTo(2024),
+                () -> assertThat(entity.getEpisodes()).isEqualTo(12),
+                () -> assertThat(entity.getApproved()).isTrue(),
+                () -> assertThat(entity.getTitleEnglish()).isEqualTo("Test Title EN"),
+                () -> assertThat(entity.getTitleJapanese()).isEqualTo("テストタイトル")
+        );
     }
 
     @Test
