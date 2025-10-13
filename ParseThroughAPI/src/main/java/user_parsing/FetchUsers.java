@@ -72,6 +72,7 @@ public class FetchUsers {
     private static final ConcurrentHashMap<String, Long> taintedHosts = new ConcurrentHashMap<>();
     private static final long TAINT_MILLIS = Duration.ofMinutes(1).toMillis();
 
+    // TODO
     public static void fetchAndPersistRandomUsers(int numberOfUsers, int numberOfAnimeInLists,
                                                   int numberOfCompletedAnimeInLists) {
         final int MAX_TASK_MS = 120_000;
@@ -120,7 +121,7 @@ public class FetchUsers {
                         }
 
                         saveUserAndStats(curUser, sd);
-                        dataIntegrityRestorer.processUser(curUser.malId);
+                        dataIntegrityRestorer.processUserById(curUser.malId);
 
                         try { Thread.sleep(BETWEEN_TASK_SLEEP_MS); } catch (InterruptedException ie) {
                             Thread.currentThread().interrupt();
@@ -213,6 +214,8 @@ public class FetchUsers {
 
     private record DecodedResponse(int status, String body, String contentEncoding, String contentType) { }
 
+    // TODO reduce complexity
+    // split in to some more
     private static DecodedResponse fetchDecoded(String url) throws IOException {
         final int MAX_CAPTCHA_RETRIES = 3;
         String hostKey = url.contains("myanimelist.net") ? "myanimelist.net" : url;
@@ -347,6 +350,7 @@ public class FetchUsers {
         return mapper.treeToValue(data, UserLite.class);
     }
 
+    // TODO split and refactor
     public static boolean fetchUserAnimeList(String username,
                                              java.util.function.Consumer<List<UserAnimeEntry>> pageHandler)
             throws IOException, InterruptedException {

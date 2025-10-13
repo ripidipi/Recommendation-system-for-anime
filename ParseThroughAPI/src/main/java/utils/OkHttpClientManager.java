@@ -8,10 +8,7 @@ import java.time.Duration;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
-/**
- * Manager for OkHttpClient that keeps a reference to the Dispatcher executor and ConnectionPool
- * so we can reliably evict connections and shutdown executors when recreating the client.
- */
+
 public class OkHttpClientManager {
 
     private static final int THREAD_POOL_SIZE = 15;
@@ -26,8 +23,6 @@ public class OkHttpClientManager {
     private volatile ConnectionPool connectionPool;
 
     private final Object lock = new Object();
-
-    public OkHttpClientManager() { }
 
     public OkHttpClient getClient() {
         if (client == null) {

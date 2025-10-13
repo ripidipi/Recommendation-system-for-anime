@@ -64,16 +64,16 @@ public class UserStat {
         return daysWatched;
     }
 
-    public void setDaysWatched(double days_watched) {
-        this.daysWatched = days_watched;
+    public void setDaysWatched(double daysWatched) {
+        this.daysWatched = daysWatched;
     }
 
     public double getMeanScore() {
         return meanScore;
     }
 
-    public void setMeanScore(double mean_score) {
-        this.meanScore = mean_score;
+    public void setMeanScore(double meanScore) {
+        this.meanScore = meanScore;
     }
 
     public int getWatching() {
@@ -96,8 +96,8 @@ public class UserStat {
         return onHold;
     }
 
-    public void setOnHold(int on_hold) {
-        this.onHold = on_hold;
+    public void setOnHold(int onHold) {
+        this.onHold = onHold;
     }
 
     public int getDropped() {
@@ -112,16 +112,16 @@ public class UserStat {
         return planToWatch;
     }
 
-    public void setPlanToWatch(int plan_to_watch) {
-        this.planToWatch = plan_to_watch;
+    public void setPlanToWatch(int planToWatch) {
+        this.planToWatch = planToWatch;
     }
 
     public int getTotalEntries() {
         return totalEntries;
     }
 
-    public void setTotalEntries(int total_entries) {
-        this.totalEntries = total_entries;
+    public void setTotalEntries(int totalEntries) {
+        this.totalEntries = totalEntries;
     }
 
     public int getRewatched() {

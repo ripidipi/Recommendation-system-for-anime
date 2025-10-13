@@ -24,6 +24,7 @@ public class UserResyncService {
         this.persistBatchSize = persistBatchSize;
     }
 
+    // TODO reduce complexity
     public boolean resyncUserUpsertFetchWithRetries(String username, int malId,
                                                     int maxAttempts, long baseSleepMs) {
         Exception lastException = null;
@@ -54,7 +55,7 @@ public class UserResyncService {
                     System.out.println("Finished download: collected = " + collected.size() +
                             " entries for " + username);
 
-                    if (reported > 0 && collected.size() == 0) {
+                    if (reported > 0 && collected.isEmpty()) {
                         String reason = "reported>0 but collected==0 (private/blocked)";
                         logFailed(username, malId, "manual_review", reason);
                         System.out.println("WARN: " + reason + " for " + username + ". Aborting upsert");

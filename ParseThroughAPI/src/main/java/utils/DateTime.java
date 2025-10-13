@@ -31,6 +31,7 @@ public final class DateTime {
      * - RFC_1123_DATE_TIME (as a fallback)
      * Returns null if parsing failed.
      */
+    // TODO reduce coomplexity
     public static OffsetDateTime parseToOffsetDateTime(String s) {
         if (s == null) return null;
         s = s.trim();
@@ -57,8 +58,7 @@ public final class DateTime {
                         instant = Instant.from(ta);
                     } catch (DateTimeException de) {
                         try {
-                            OffsetDateTime odt = OffsetDateTime.parse(s, f);
-                            return odt;
+                            return OffsetDateTime.parse(s, f);
                         } catch (DateTimeException e) {
                             System.out.println("Error parsing date: " + s);
                         }
