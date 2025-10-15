@@ -1,58 +1,59 @@
 package anime_parsing;
 
+import exeptions.ParserException;
 import mapper.AnimeMapper;
 import jakarta.persistence.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.HashMap;
 import java.util.Map;
-// TODO refactory needs
-public class Parser {
+import java.util.Objects;
 
-    private static volatile EntityManagerFactory emf;
+public final class Parser {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(Parser.class);
+
+    private Parser() {}
 
     public static EntityManagerFactory getEmf() {
-        if (emf == null) {
-            synchronized (Parser.class) {
-                if (emf == null) {
-                    try {
-                        Map<String, Object> props = new HashMap<>();
-                        props.put("hibernate.bytecode.provider", "javassist");
-                        emf = Persistence.createEntityManagerFactory("animePU", props);
-                    } catch (Exception e) {
-                        throw new RuntimeException("Failed to initialize EntityManagerFactory", e);
-                    }
-                }
-            }
-        }
-        return emf;
+        return EmfHolder.EMF;
     }
 
     public static void saveAnimeToDB(Anime dto) {
-        EntityManager em = getEmf().createEntityManager();
-        EntityTransaction tx = em.getTransaction();
-
+        Objects.requireNonNull(dto, "dto must not be null");
         if (dto.title == null || dto.title.isBlank()) {
-            System.out.println("Skipping anime with empty title, malId=" + dto.malId);
+            LOGGER.info("Skipping anime with empty title, malId={}", dto.malId);
             return;
         }
 
-        try {
-            tx.begin();
-
-            var existingAnime = em.find(data.Anime.class, dto.malId);
-            if (existingAnime != null) {
-                AnimeMapper.update(existingAnime, dto, em);
-                em.merge(existingAnime);
-            } else {
-                var newAnime = AnimeMapper.map(dto, em);
-                em.persist(newAnime);
+        try (EntityManager em = getEmf().createEntityManager()) {
+            EntityTransaction tx = em.getTransaction();
+            try {
+                tx.begin();
+                data.Anime existingAnime = em.find(data.Anime.class, dto.malId);
+                if (existingAnime != null) {
+                    AnimeMapper.update(existingAnime, dto, em);
+                    em.merge(existingAnime);
+                } else {
+                    data.Anime newAnime = AnimeMapper.map(dto, em);
+                    em.persist(newAnime);
+                }
+                tx.commit();
+            } catch (RuntimeException e) {
+                if (tx.isActive()) {
+                    try {
+                        tx.rollback();
+                    } catch (RuntimeException re) {
+                        LOGGER.warn("Rollback failed for anime malId={}", dto.malId, re);
+                    }
+                }
+                LOGGER.error("Error saving anime: {}", dto.title, e);
+                throw new ParserException("Error saving anime: " + dto.title, e);
             }
-            tx.commit();
-        } catch (Exception e) {
-            if (tx.isActive()) tx.rollback();
-            throw new RuntimeException("Error saving anime: " + dto.title, e);
-        } finally {
-            em.close();
+        } catch (PersistenceException e) {
+            LOGGER.error("Persistence error when saving anime: {}", dto.title, e);
+            throw new ParserException("Persistence error saving anime: " + dto.title, e);
         }
     }
 }

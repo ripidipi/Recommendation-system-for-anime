@@ -24,106 +24,124 @@ public class FetchTop {
             .setPropertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE)
             .findAndRegisterModules();
 
-    // TODO reduce complexity
-    public static void fetchAndPersistAnime(int numberOfPages)  {
+    public static void fetchAndPersistAnime(int numberOfPages) {
+
         final int POOL_SIZE = 7;
         final int MAX_RETRIES = 5;
-        final long BETWEEN_TASK_SLEEP_MS = 1500;
-        final long INTERVAL_MS = 1000;
-        final long MAX_TASK_MS = 500;
+        final long RETRY_BASE_SLEEP_MS = 1500L;
+        final long SUBMIT_INTERVAL_MS = 1000L;
+        final long TASK_GET_TIMEOUT_SEC = 5L;
+        final long AWAIT_TERMINATION_SEC = 30L;
 
         ExecutorService executor = Executors.newFixedThreadPool(POOL_SIZE);
         CompletionService<Integer> cs = new ExecutorCompletionService<>(executor);
 
         int submitted = 0;
-
         try {
-            for (int page = 1; page <= numberOfPages; page++) {
-                final int currentPage = page;
-                cs.submit(() -> {
-                    for (int attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-                        try {
-                            AnimeTopResult res = fetchTopAnimePage(currentPage);
-                            if (res != null && res.data != null) {
-                                for (var anime : res.data) {
-                                    try {
-                                        Parser.saveAnimeToDB(anime);
-                                    } catch (Exception e) {
-                                        System.out.println("Error saving anime (page " + currentPage + "): "
-                                                + e.getMessage());
-                                        e.printStackTrace();
-                                    }
-                                }
-                            }
-                            return currentPage;
-                        } catch (Exception e) {
-                            System.out.println("Fetch page " + currentPage + " failed (attempt " + attempt + "): "
-                                    + e.getMessage());
-                            if (attempt == MAX_RETRIES) {
-                                throw e;
-                            } else {
-                                try {
-                                    Thread.sleep(BETWEEN_TASK_SLEEP_MS * attempt);
-                                } catch (InterruptedException ie) {
-                                    Thread.currentThread().interrupt();
-                                    throw ie;
-                                }
-                            }
-                        }
-                    }
-                    return currentPage;
-                });
-                submitted++;
-                try { Thread.sleep(INTERVAL_MS); } catch (InterruptedException ie) {
-                    Thread.currentThread().interrupt(); break;
-                }
-            }
+            submitted = submitPages(cs, numberOfPages, SUBMIT_INTERVAL_MS, MAX_RETRIES, RETRY_BASE_SLEEP_MS);
 
-            int completed = 0;
-            for (int i = 0; i < submitted; i++) {
-                try {
-                    Future<Integer> f = cs.poll(MAX_TASK_MS, TimeUnit.SECONDS);
-                    if (f == null) {
-                        System.out.println("No completed futures in " + MAX_TASK_MS + "s");
-                        f = cs.poll(10, TimeUnit.SECONDS);
-                        if (f == null) {
-                            continue;
-                        }
-                    }
-                    try {
-                        Integer page = f.get(5, TimeUnit.SECONDS);
-                        completed++;
-                        if (completed % 50 == 0 || page % 100 == 0) {
-                            System.out.println("Completed pages: " + completed + "/" + submitted + " (last page: " + page + ")");
-                        }
-                    } catch (ExecutionException ee) {
-                        System.out.println("Task failed: " + ee.getCause());
-                    } catch (CancellationException ce) {
-                        System.out.println("Task cancelled");
-                    } catch (TimeoutException te) {
-                        System.out.println("Unexpected timeout getting future result");
-                    }
-                } catch (InterruptedException ie) {
-                    Thread.currentThread().interrupt();
-                    System.out.println("Collector interrupted");
-                    break;
-                }
-            }
+            int completed = collectResults(cs, submitted, TASK_GET_TIMEOUT_SEC);
 
             System.out.println("Total submitted pages: " + submitted + ", completed (successful tasks observed): " + completed);
         } finally {
-            executor.shutdownNow();
-            try {
-                if (!executor.awaitTermination(30, TimeUnit.SECONDS)) {
-                    System.out.println("Executor didn't stop in time, forcing shutdown");
-                    executor.shutdownNow();
-                }
-            } catch (InterruptedException ie) {
-                executor.shutdownNow();
-                Thread.currentThread().interrupt();
-            }
+            shutdownExecutor(executor, AWAIT_TERMINATION_SEC);
         }
     }
+
+    private static int submitPages(CompletionService<Integer> cs,
+                                   int numberOfPages,
+                                   long submitIntervalMs,
+                                   int maxRetries,
+                                   long retryBaseSleepMs) {
+        int submitted = 0;
+        for (int page = 1; page <= numberOfPages; page++) {
+            final int currentPage = page;
+            cs.submit(() -> fetchAndSavePageWithRetries(currentPage, maxRetries, retryBaseSleepMs));
+            submitted++;
+            try {
+                Thread.sleep(submitIntervalMs);
+            } catch (InterruptedException ie) {
+                Thread.currentThread().interrupt();
+                System.out.println("Submit loop interrupted, stopping submissions at page " + currentPage);
+                break;
+            }
+        }
+        return submitted;
+    }
+
+    private static Integer fetchAndSavePageWithRetries(int page, int maxRetries, long retryBaseSleepMs) throws Exception {
+        for (int attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+                AnimeTopResult res = fetchTopAnimePage(page);
+                if (res != null && res.data != null) {
+                    for (var anime : res.data) {
+                        try {
+                            Parser.saveAnimeToDB(anime);
+                        } catch (Exception e) {
+                            System.out.println("Error saving anime (page " + page + "): " + e.getMessage());
+                            e.printStackTrace();
+                        }
+                    }
+                }
+                return page;
+            } catch (Exception e) {
+                System.out.println("Fetch page " + page + " failed (attempt " + attempt + "): " + e.getMessage());
+                if (attempt == maxRetries) {
+                    throw e;
+                } else {
+                    try {
+                        long sleepMs = retryBaseSleepMs * attempt;
+                        TimeUnit.MILLISECONDS.sleep(sleepMs);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        throw ie;
+                    }
+                }
+            }
+        }
+        return page;
+    }
+
+    private static int collectResults(CompletionService<Integer> cs, int submitted, long taskGetTimeoutSec) {
+        int completed = 0;
+        for (int i = 0; i < submitted; i++) {
+            try {
+                Future<Integer> f = cs.take();
+                try {
+                    Integer page = f.get(taskGetTimeoutSec, TimeUnit.SECONDS);
+                    completed++;
+                    if (completed % 50 == 0 || (page != null && page % 100 == 0)) {
+                        System.out.println("Completed pages: " + completed + "/" + submitted + " (last page: " + page + ")");
+                    }
+                } catch (ExecutionException ee) {
+                    System.out.println("Task failed with exception: " + ee.getCause());
+                } catch (CancellationException ce) {
+                    System.out.println("Task cancelled.");
+                } catch (TimeoutException te) {
+                    System.out.println("Timed out waiting for task result.");
+                }
+            } catch (InterruptedException ie) {
+                Thread.currentThread().interrupt();
+                System.out.println("Collector interrupted, stopping collection.");
+                break;
+            }
+        }
+        return completed;
+    }
+
+    private static void shutdownExecutor(ExecutorService executor, long awaitTerminationSec) {
+        executor.shutdown();
+        try {
+            if (!executor.awaitTermination(awaitTerminationSec, TimeUnit.SECONDS)) {
+                System.out.println("Executor didn't stop in " + awaitTerminationSec + "s, forcing shutdownNow()");
+                executor.shutdownNow();
+            }
+        } catch (InterruptedException ie) {
+            executor.shutdownNow();
+            Thread.currentThread().interrupt();
+        }
+    }
+
 
     public static int countPages() {
         if (!pageExists(1)) return 0;
