@@ -15,7 +15,7 @@ import java.util.concurrent.*;
 
 public class FetchTop {
 
-    private static final String BASE = "https://api.jikan.moe/v4";
+    private static String BASE = "https://api.jikan.moe/v4";
     private static final HttpClient client = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(10))
             .version(HttpClient.Version.HTTP_1_1)
@@ -205,5 +205,9 @@ public class FetchTop {
             throw new HttpRequestException("HTTP " + response.statusCode());
         }
         return mapper.readValue(response.body(), AnimeTopResult.class);
+    }
+
+    public static void setBASE(String base) {
+        FetchTop.BASE = base;
     }
 }

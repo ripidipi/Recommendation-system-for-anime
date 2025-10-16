@@ -4,15 +4,9 @@ import exeptions.ParserException;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
 import jakarta.persistence.EntityTransaction;
-import jakarta.persistence.Persistence;
 import mapper.AnimeMapper;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
 import org.mockito.MockedStatic;
-
-import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -24,26 +18,27 @@ class ParserTest {
     private static EntityManager mockEm;
     private static EntityTransaction mockTx;
 
+    private static EntityManagerFactory previousEmf;
+
     @BeforeAll
-    static void beforeAll() throws Exception {
+    static void beforeAll() {
         mockEmf = mock(EntityManagerFactory.class);
         mockEm = mock(EntityManager.class);
         mockTx = mock(EntityTransaction.class);
 
         when(mockEmf.createEntityManager()).thenReturn(mockEm);
         when(mockEm.getTransaction()).thenReturn(mockTx);
+
         when(mockTx.isActive()).thenReturn(true);
 
-        try (MockedStatic<Persistence> persistenceMock = mockStatic(Persistence.class)) {
-            persistenceMock.when(() -> Persistence.createEntityManagerFactory(anyString(), any(Map.class)))
-                    .thenReturn(mockEmf);
-
-            Class.forName("anime_parsing.EmfHolder", true, ParserTest.class.getClassLoader());
-        }
+        previousEmf = EmfHolder.setEmfForTests(mockEmf);
     }
 
     @AfterAll
     static void afterAll() {
+        EmfHolder.setEmfForTests(previousEmf);
+        EmfHolder.closeEmf();
+
         mockEmf = null;
         mockEm = null;
         mockTx = null;
@@ -71,16 +66,15 @@ class ParserTest {
         verify(mockEm, never()).close();
     }
 
-
     @Test
     void saveNewAnime_shouldPersist_andCommit_andClose() {
         Anime dto = new Anime();
         dto.title = "New Anime";
         dto.malId = 10;
 
-        data.Anime mapped = mock(data.Anime.class);
-
         when(mockEm.find(data.Anime.class, dto.malId)).thenReturn(null);
+
+        data.Anime mapped = mock(data.Anime.class);
 
         try (MockedStatic<AnimeMapper> mm = mockStatic(AnimeMapper.class)) {
             mm.when(() -> AnimeMapper.map(eq(dto), eq(mockEm))).thenReturn(mapped);
@@ -91,6 +85,7 @@ class ParserTest {
             verify(mockEm).persist(mapped);
             verify(mockTx).commit();
             verify(mockEm).close();
+
             mm.verify(() -> AnimeMapper.map(eq(dto), eq(mockEm)), times(1));
         }
     }
