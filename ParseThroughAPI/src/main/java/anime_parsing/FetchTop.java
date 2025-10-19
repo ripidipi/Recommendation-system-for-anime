@@ -3,6 +3,8 @@ package anime_parsing;
 import exeptions.HttpRequestException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.net.URI;
@@ -10,99 +12,148 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.util.Objects;
 import java.util.concurrent.*;
-
 
 public class FetchTop {
 
-    private static String BASE = "https://api.jikan.moe/v4";
-    private static final HttpClient client = HttpClient.newBuilder()
-            .connectTimeout(Duration.ofSeconds(10))
-            .version(HttpClient.Version.HTTP_1_1)
-            .build();
-    private static final ObjectMapper mapper = new ObjectMapper()
-            .setPropertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE)
-            .findAndRegisterModules();
+    public static final int DEFAULT_POOL_SIZE = 7;
+    public static final long DEFAULT_SUBMIT_INTERVAL_MS = 1_500L;
+    public static final long DEFAULT_COUNT_SUBMIT_INTERVAL_MS = 2_000L;
+    public static final int DEFAULT_MAX_ATTEMPTS = 5;
+    public static final long DEFAULT_TASK_GET_TIMEOUT_SEC = 5L;
+    public static final long DEFAULT_AWAIT_TERMINATION_SEC = 30L;
+    public static final String DEFAULT_BASE_URL = "https://api.jikan.moe/v4";
 
-    public static void fetchAndPersistAnime(int numberOfPages) {
+    private static final Logger LOGGER = LoggerFactory.getLogger(FetchTop.class);
 
-        final int POOL_SIZE = 7;
-        final int MAX_RETRIES = 5;
-        final long RETRY_BASE_SLEEP_MS = 1500L;
-        final long SUBMIT_INTERVAL_MS = 1000L;
-        final long TASK_GET_TIMEOUT_SEC = 5L;
-        final long AWAIT_TERMINATION_SEC = 30L;
+    private final long submitIntervalMs;
+    private final long countSubmitIntervalMs;
+    private final int maxAttempts;
+    private final long taskGetTimeoutSec;
+    private final long awaitTerminationSec;
+    private final String baseUrl;
 
-        ExecutorService executor = Executors.newFixedThreadPool(POOL_SIZE);
-        CompletionService<Integer> cs = new ExecutorCompletionService<>(executor);
+    private final HttpClient client;
+    final ObjectMapper mapper;
+    private final AnimePersister persister;
+    private final ExecutorService executor;
+    private final boolean executorOwned;
 
-        int submitted = 0;
-        try {
-            submitted = submitPages(cs, numberOfPages, SUBMIT_INTERVAL_MS, MAX_RETRIES, RETRY_BASE_SLEEP_MS);
+    public FetchTop(HttpClient client,
+                    ObjectMapper mapper,
+                    AnimePersister persister,
+                    ExecutorService executor,
+                    int poolSize,
+                    long submitIntervalMs,
+                    long countSubmitIntervalMs,
+                    int maxAttempts,
+                    long taskGetTimeoutSec,
+                    long awaitTerminationSec,
+                    String baseUrl) {
+        this.client = Objects.requireNonNull(client);
+        this.mapper = Objects.requireNonNull(mapper);
+        this.persister = Objects.requireNonNull(persister);
+        this.submitIntervalMs = submitIntervalMs;
+        this.countSubmitIntervalMs = countSubmitIntervalMs;
+        this.maxAttempts = maxAttempts;
+        this.taskGetTimeoutSec = taskGetTimeoutSec;
+        this.awaitTerminationSec = awaitTerminationSec;
+        this.baseUrl = Objects.requireNonNull(baseUrl);
 
-            int completed = collectResults(cs, submitted, TASK_GET_TIMEOUT_SEC);
-
-            System.out.println("Total submitted pages: " + submitted + ", completed (successful tasks observed): " + completed);
-        } finally {
-            shutdownExecutor(executor, AWAIT_TERMINATION_SEC);
+        if (executor != null) {
+            this.executor = executor;
+            this.executorOwned = false;
+        } else {
+            this.executor = Executors.newFixedThreadPool(poolSize);
+            this.executorOwned = true;
         }
     }
 
-    private static int submitPages(CompletionService<Integer> cs,
-                                   int numberOfPages,
-                                   long submitIntervalMs,
-                                   int maxRetries,
-                                   long retryBaseSleepMs) {
+    public static FetchTop createDefault(AnimePersister persister) {
+        HttpClient client = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(10))
+                .version(HttpClient.Version.HTTP_1_1)
+                .build();
+        ObjectMapper mapper = new ObjectMapper()
+                .setPropertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE)
+                .findAndRegisterModules();
+        ExecutorService executor = Executors.newFixedThreadPool(DEFAULT_POOL_SIZE);
+        return new FetchTop(client, mapper, persister, executor,
+                DEFAULT_POOL_SIZE,
+                DEFAULT_SUBMIT_INTERVAL_MS,
+                DEFAULT_COUNT_SUBMIT_INTERVAL_MS,
+                DEFAULT_MAX_ATTEMPTS,
+                DEFAULT_TASK_GET_TIMEOUT_SEC,
+                DEFAULT_AWAIT_TERMINATION_SEC,
+                DEFAULT_BASE_URL);
+    }
+
+    public void fetchAndPersistAnime(int numberOfPages) {
+        CompletionService<Integer> cs = new ExecutorCompletionService<>(executor);
+        int submitted = 0;
+        try {
+            submitted = submitPages(cs, numberOfPages);
+            int completed = collectResults(cs, submitted);
+            LOGGER.info("Total submitted pages: {}, completed (successful tasks observed) {}", submitted, completed);
+        } finally {
+            if (executorOwned) {
+                shutdownExecutor();
+            }
+        }
+    }
+
+    private int submitPages(CompletionService<Integer> cs, int numberOfPages) {
         int submitted = 0;
         for (int page = 1; page <= numberOfPages; page++) {
             final int currentPage = page;
-            cs.submit(() -> fetchAndSavePageWithRetries(currentPage, maxRetries, retryBaseSleepMs));
+            cs.submit(() -> fetchAndSavePageWithRetries(currentPage));
             submitted++;
+            if (submitted % 25 == 0 )
+                LOGGER.info("Submitted page {} of {} pages", currentPage, numberOfPages);
             try {
                 Thread.sleep(submitIntervalMs);
             } catch (InterruptedException ie) {
                 Thread.currentThread().interrupt();
-                System.out.println("Submit loop interrupted, stopping submissions at page " + currentPage);
+                LOGGER.warn("Submit loop interrupted, stopping submissions at page {}", currentPage, ie);
                 break;
             }
         }
         return submitted;
     }
 
-    private static Integer fetchAndSavePageWithRetries(int page, int maxRetries, long retryBaseSleepMs) throws Exception {
-        for (int attempt = 1; attempt <= maxRetries; attempt++) {
+    private Integer fetchAndSavePageWithRetries(int page) throws Exception {
+        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
             try {
                 AnimeTopResult res = fetchTopAnimePage(page);
                 if (res != null && res.data != null) {
-                    for (var anime : res.data) {
+                    for (Anime anime : res.data) {
                         try {
-                            Parser.saveAnimeToDB(anime);
+                            persister.save(anime);
                         } catch (Exception e) {
-                            System.out.println("Error saving anime (page " + page + "): " + e.getMessage());
-                            e.printStackTrace();
+                            LOGGER.error("Error saving anime (page {}): {}", page, e.getMessage(), e);
                         }
                     }
                 }
                 return page;
             } catch (Exception e) {
-                System.out.println("Fetch page " + page + " failed (attempt " + attempt + "): " + e.getMessage());
-                if (attempt == maxRetries) {
+                LOGGER.warn("Fetch page {} failed (attempt {})", page, attempt);
+                if (attempt == maxAttempts) {
                     throw e;
-                } else {
-                    try {
-                        long sleepMs = retryBaseSleepMs * attempt;
-                        TimeUnit.MILLISECONDS.sleep(sleepMs);
-                    } catch (InterruptedException ie) {
-                        Thread.currentThread().interrupt();
-                        throw ie;
-                    }
+                }
+                try {
+                    long sleepMs = 1_500L * attempt;
+                    TimeUnit.MILLISECONDS.sleep(sleepMs);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    throw ie;
                 }
             }
         }
         return page;
     }
 
-    private static int collectResults(CompletionService<Integer> cs, int submitted, long taskGetTimeoutSec) {
+    private int collectResults(CompletionService<Integer> cs, int submitted) {
         int completed = 0;
         for (int i = 0; i < submitted; i++) {
             try {
@@ -111,29 +162,29 @@ public class FetchTop {
                     Integer page = f.get(taskGetTimeoutSec, TimeUnit.SECONDS);
                     completed++;
                     if (completed % 50 == 0 || (page != null && page % 100 == 0)) {
-                        System.out.println("Completed pages: " + completed + "/" + submitted + " (last page: " + page + ")");
+                        LOGGER.info("Completed pages: {}/{} (last page: {})", completed, submitted, page);
                     }
                 } catch (ExecutionException ee) {
-                    System.out.println("Task failed with exception: " + ee.getCause());
+                    LOGGER.error("Task failed with exception: {}", ee.getCause(), ee);
                 } catch (CancellationException ce) {
-                    System.out.println("Task cancelled.");
+                    LOGGER.warn("Task cancelled.", ce);
                 } catch (TimeoutException te) {
-                    System.out.println("Timed out waiting for task result.");
+                    LOGGER.error("Timed out waiting for task result.", te);
                 }
             } catch (InterruptedException ie) {
                 Thread.currentThread().interrupt();
-                System.out.println("Collector interrupted, stopping collection.");
+                LOGGER.error("Collector interrupted, stopping collection.", ie);
                 break;
             }
         }
         return completed;
     }
 
-    private static void shutdownExecutor(ExecutorService executor, long awaitTerminationSec) {
+    private void shutdownExecutor() {
         executor.shutdown();
         try {
             if (!executor.awaitTermination(awaitTerminationSec, TimeUnit.SECONDS)) {
-                System.out.println("Executor didn't stop in " + awaitTerminationSec + "s, forcing shutdownNow()");
+                LOGGER.warn("Executor didn't stop in {}s, forcing shutdownNow()", awaitTerminationSec);
                 executor.shutdownNow();
             }
         } catch (InterruptedException ie) {
@@ -142,9 +193,10 @@ public class FetchTop {
         }
     }
 
-
-    public static int countPages() {
-        if (!pageExists(1)) return 0;
+    public int countPages() {
+        if (!pageExists(1)) {
+            return 0;
+        }
 
         int lo = 1;
         int hi = 1;
@@ -156,11 +208,14 @@ public class FetchTop {
                 break;
             }
             try {
-                Thread.sleep(1000);
-            } catch (Exception e) {
-                System.out.println("Error sleeping: " + e.getMessage());
+                Thread.sleep(countSubmitIntervalMs);
+            } catch (InterruptedException ie) {
+                Thread.currentThread().interrupt();
+                LOGGER.error("Interrupted while sleeping in countPages", ie);
+                break;
             }
         }
+
         int l = lo;
         int r = Math.max(hi, lo + 1) - 1;
         while (l < r) {
@@ -171,32 +226,34 @@ public class FetchTop {
                 r = mid - 1;
             }
             try {
-                Thread.sleep(1000);
-            } catch (Exception e) {
-                System.out.println("Error sleeping: " + e.getMessage());
+                Thread.sleep(submitIntervalMs / 2);
+            } catch (InterruptedException ie) {
+                Thread.currentThread().interrupt();
+                LOGGER.error("Interrupted while sleeping in countPages", ie);
+                break;
             }
         }
         return l;
     }
 
-    private static boolean pageExists(int page) {
+    public boolean pageExists(int page) {
         try {
             AnimeTopResult res = fetchTopAnimePage(page);
             return res != null && res.data != null && !res.data.isEmpty();
         } catch (IOException | InterruptedException e) {
-            System.err.println("pageExists(" + page + ") failed: " + e.getMessage());
+            LOGGER.error("pageExists({}) failed: {}", page, e.getMessage(), e);
             return false;
         } catch (RuntimeException e) {
-            System.err.println("pageExists(" + page + ") runtime error: " + e.getMessage());
+            LOGGER.error("pageExists({}) runtime error: {}", page, e.getMessage(), e);
             return false;
         }
     }
 
-
-    private static AnimeTopResult fetchTopAnimePage(int page) throws IOException, InterruptedException {
-        String url = String.format("%s/top/anime?page=%d", BASE, page);
+    public AnimeTopResult fetchTopAnimePage(int page) throws IOException, InterruptedException {
+        String url = String.format("%s/top/anime?page=%d", baseUrl, page);
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(url))
+                .timeout(Duration.ofSeconds(10))
                 .GET()
                 .build();
 
@@ -207,7 +264,9 @@ public class FetchTop {
         return mapper.readValue(response.body(), AnimeTopResult.class);
     }
 
-    public static void setBASE(String base) {
-        FetchTop.BASE = base;
+    public void close() {
+        if (executorOwned) {
+            shutdownExecutor();
+        }
     }
 }

@@ -1,7 +1,9 @@
 package scripts;
 
-import static anime_parsing.FetchTop.countPages;
-import static anime_parsing.FetchTop.fetchAndPersistAnime;
+import anime_parsing.FetchTop;
+import anime_parsing.Parser;
+import anime_parsing.ParserBackedPersister;
+
 import static user_parsing.FetchUsers.fetchAndPersistRandomUsers;
 
 public class FetchAndPersist {
@@ -9,7 +11,7 @@ public class FetchAndPersist {
     Integer numberOfUsers;
     Integer numberOfPages;
     Integer numberOfAnimeInList;
-    Integer numberOfCompletedAnimeInList = 0;
+    Integer numberOfCompletedAnimeInList;
 
     public FetchAndPersist(Integer numberOfUsers, Integer numberOfAnimeInLists,
                            Integer numberOfPages, Integer numberOfCompletedAnimeInLists) {
@@ -26,14 +28,16 @@ public class FetchAndPersist {
 
     public void fillAnimeDB() {
         int numberOfPage;
+        ParserBackedPersister animePersister = new ParserBackedPersister();
+        FetchTop fetchTop = FetchTop.createDefault(animePersister);
         if (numberOfPages == null) {
-            numberOfPage = countPages();
+            numberOfPage = fetchTop.countPages();
             System.out.println("FetchAndPersist.fillAnimeDB: countPages() -> " + numberOfPage);
         } else {
             numberOfPage = numberOfPages;
             System.out.println("FetchAndPersist.fillAnimeDB: using NUMBER_OF_PAGES -> " + numberOfPage);
         }
-        fetchAndPersistAnime(numberOfPage);
+        fetchTop.fetchAndPersistAnime(numberOfPage);
     }
 
 }
