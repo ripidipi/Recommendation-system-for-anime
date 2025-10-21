@@ -51,6 +51,7 @@ jobs:
 
       - name: Submit dependency graph (optional)
         if: success()
-        working-directory: ParseThroughAPI
         uses: advanced-security/maven-dependency-submission-action@v4
+        with:
+          pom-path: ParseThroughAPI/pom.xml
         continue-on-error: true
