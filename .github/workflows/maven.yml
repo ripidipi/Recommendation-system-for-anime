@@ -26,30 +26,31 @@ jobs:
           distribution: 'temurin'
           cache: maven
 
-      - name: Build ParseThroughAPI module
+      - name: Build and package with Maven
         working-directory: ParseThroughAPI
-        run: mvn -B -ntp -f pom.xml verify
+        run: mvn -B -ntp clean package
 
-      - name: Upload built JAR(s)
+      - name: Upload built JARs
         if: success()
         uses: actions/upload-artifact@v4
         with:
           name: built-jars
           path: |
-            ParseThroughAPI/target/*.jar
-            ParseThroughAPI/target/*-jar-with-dependencies.jar
+            ParseThroughAPI/target/ParseThroughAPI-*.jar
+            !ParseThroughAPI/target/*-tests.jar
+            !ParseThroughAPI/target/original-*.jar
 
-      - name: Upload test reports (Surefire / Failsafe)
+      - name: Upload test reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: test-reports
           path: |
-            ParseThroughAPI/target/surefire-reports/**
-            ParseThroughAPI/target/failsafe-reports/**
+            ParseThroughAPI/target/surefire-reports/
+            ParseThroughAPI/target/failsafe-reports/
 
-      - name: Update dependency graph (optional)
+      - name: Submit dependency graph (optional)
         if: success()
         working-directory: ParseThroughAPI
-        uses: advanced-security/maven-dependency-submission-action@571e99aab1055c2e71a1e2309b9691de18d6b7d6
+        uses: advanced-security/maven-dependency-submission-action@v4
         continue-on-error: true
