@@ -1,6 +1,9 @@
 package user_parsing;
 
+import anime_parsing.FetchTop;
 import exeptions.HttpRequestException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import scripts.DataIntegrityRestorer;
 import utils.OkHttpClientManager;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -29,6 +32,8 @@ public class FetchUsers {
 
     private static final String API_HOST;
     private static final String MAL_HOST;
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(FetchUsers.class);
 
     static {
         String apiHost = System.getProperty("jikan.base");
@@ -111,12 +116,14 @@ public class FetchUsers {
                         StatsData sd = fetchUserStats(curUser.username);
 
                         if (sd == null || sd.anime == null) {
-                            System.out.println("No stats for user " + curUser.username);
+                            LOGGER.warn("No stats for user {}", curUser.username);
+
                             return false;
                         }
                         if (sd.anime.totalEntries < numberOfAnimeInLists &&
                                 sd.anime.completed < numberOfCompletedAnimeInLists) {
-                            System.out.println("Too few anime for " + curUser.username + ": " + sd.anime.totalEntries);
+                            LOGGER.warn("Too few anime for {}: {}", curUser.username, sd.anime.totalEntries);
+
                             return false;
                         }
 

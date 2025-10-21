@@ -36,6 +36,9 @@ public class Users {
     @Column(name = "updated_at")
     private OffsetDateTime updatedAt;
 
+    @OneToOne(mappedBy = "user")
+    private UserStat userStat;
+
     public Integer getMalId() {
         return malId;
     }
@@ -108,4 +111,11 @@ public class Users {
         this.updatedAt = updatedAt;
     }
 
+    public UserStat getUserStat() {
+        return userStat;
+    }
+
+    public void setUserStat(UserStat userStat) {
+        this.userStat = userStat;
+    }
 }

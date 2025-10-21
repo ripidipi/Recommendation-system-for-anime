@@ -4,30 +4,40 @@ import user_parsing.UserAnimeEntry;
 import data.UserAnimeStat;
 import utils.DateTime;
 import jakarta.persistence.EntityManager;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.time.OffsetDateTime;
+import java.util.Map;
 
-public class UserAnimeStatMapper {
+public final class UserAnimeStatMapper {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(UserAnimeStatMapper.class);
+
+    private static final Map<Integer, String> STATUS_MAP = Map.of(
+            1, "watching",
+            2, "completed",
+            3, "on_hold",
+            4, "dropped",
+            6, "plan_to_watch"
+    );
+
+    private UserAnimeStatMapper() {}
 
     private static String statusToString(Integer code) {
         if (code == null) return null;
-        switch (code) {
-            case 1: return "watching";
-            case 2: return "completed";
-            case 3: return "on_hold";
-            case 4: return "dropped";
-            case 6: return "plan_to_watch";
-            default: return "status_" + code;
-        }
+        return STATUS_MAP.getOrDefault(code, "status_" + code);
     }
 
-    public static void mapAndCreate(UserAnimeEntry dto, int userId, EntityManager em) {
-        if (dto == null || dto.animeId == null) return;
+    public static void map(UserAnimeEntry dto, int userId, EntityManager em) {
+
+        if (dto == null || dto.animeId == null) {
+            return;
+        }
 
         data.Anime animeEntity = em.find(data.Anime.class, dto.animeId);
-
         if (animeEntity == null) {
-            System.out.println("Skipping anime with malId=" + dto.animeId + " - not found in database");
+            LOGGER.warn("Skipping anime with malId={} - not found in database", dto.animeId);
             return;
         }
 
@@ -36,23 +46,34 @@ public class UserAnimeStatMapper {
         key.setAnimeId(dto.animeId);
 
         UserAnimeStat entity = em.find(UserAnimeStat.class, key);
+
         if (entity == null) {
             entity = new UserAnimeStat();
             entity.setUserId(userId);
             entity.setAnimeId(dto.animeId);
+            em.persist(entity);
         }
+        apply(entity, dto);
+    }
 
+    private static void apply(UserAnimeStat entity, UserAnimeEntry dto) {
         Integer scoreToSet = (dto.score != null && dto.score > 0) ? dto.score : null;
         entity.setScore(scoreToSet);
+
         entity.setStatus(statusToString(dto.status));
         entity.setEpisodesWatched(dto.numWatchedEpisodes);
 
         OffsetDateTime last = null;
-        if (dto.updatedAt != null) last = DateTime.parseToOffsetDateTime(dto.updatedAt);
-        else if (dto.createdAt != null) last = DateTime.parseToOffsetDateTime(dto.createdAt);
+        try {
+            if (dto.updatedAt != null) {
+                last = DateTime.parseToOffsetDateTime(dto.updatedAt);
+            } else if (dto.createdAt != null) {
+                last = DateTime.parseToOffsetDateTime(dto.createdAt);
+            }
+        } catch (Exception e) {
+            LOGGER.warn("Failed to parse dates for userAnime (animeId={}, userId={}), will use now(): {}",
+                    entity.getAnimeId(), entity.getUserId(), e.getMessage());
+        }
         entity.setLastUpdated(last != null ? last : OffsetDateTime.now());
-
-        em.merge(entity);
     }
-
 }

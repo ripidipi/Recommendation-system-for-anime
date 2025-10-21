@@ -5,6 +5,7 @@ import anime_parsing.Demographic;
 import anime_parsing.Genre;
 import anime_parsing.Producer;
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceException;
 import org.instancio.Instancio;
 import org.junit.jupiter.api.RepeatedTest;
 import org.junit.jupiter.api.Test;
@@ -15,12 +16,13 @@ import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.instancio.Select.field;
-import static org.junit.jupiter.api.Assertions.assertAll;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
@@ -152,13 +154,13 @@ class AnimeMapperTest {
                     .orElseThrow(() -> new AssertionError("No persisted genre with malId=" +
                             dtoGenre.malId + " — captured: " + allPersisted));
             assertAll(
-                () -> assertThat(persisted.getMalId()).isEqualTo(dtoGenre.malId),
-                () -> assertThat(persisted.getName()).isEqualTo(dtoGenre.name),
-                () -> assertThat(persisted.getUrl()).isEqualTo(dtoGenre.url),
+                    () -> assertThat(persisted.getMalId()).isEqualTo(dtoGenre.malId),
+                    () -> assertThat(persisted.getName()).isEqualTo(dtoGenre.name),
+                    () -> assertThat(persisted.getUrl()).isEqualTo(dtoGenre.url),
 
-                () -> assertThat(entity.getMalId()).isEqualTo(dto.malId),
-                () -> assertThat(entity.getTitle()).isEqualTo(dto.title),
-                () -> assertThat(entity.getGenres()).isNotEmpty()
+                    () -> assertThat(entity.getMalId()).isEqualTo(dto.malId),
+                    () -> assertThat(entity.getTitle()).isEqualTo(dto.title),
+                    () -> assertThat(entity.getGenres()).isNotEmpty()
             );
         } catch (AssertionError ae) {
             throw new AssertionError("Failed with seed = " + seed, ae);
@@ -343,4 +345,137 @@ class AnimeMapperTest {
         assertThat(existingAnime.getTitle()).isEqualTo("Updated Title");
     }
 
+    @Test
+    void map_resultCollectionsAreMutable() {
+        Producer p = new Producer();
+        p.malId = 1;
+        p.name = "P";
+        p.url = "u";
+
+        Genre g = new Genre();
+        g.malId = 2;
+        g.name = "G";
+        g.url = "u";
+
+        Demographic d = new Demographic();
+        d.malId = 3;
+        d.name = "D";
+        d.url = "u";
+
+        Anime dto = new Anime();
+        dto.malId = 10;
+        dto.title = "T";
+        dto.producers = List.of(p);
+        dto.genres = List.of(g);
+        dto.demographics = List.of(d);
+
+        when(em.find(data.Producer.class, 1)).thenReturn(null);
+        when(em.find(data.Genre.class, 2)).thenReturn(null);
+        when(em.find(data.Demographic.class, 3)).thenReturn(null);
+
+        data.Anime entity = AnimeMapper.map(dto, em);
+
+        assertNotNull(entity.getProducers());
+        assertNotNull(entity.getGenres());
+        assertNotNull(entity.getDemographics());
+
+        entity.getProducers().clear();
+        entity.getProducers().add(new data.Producer());
+
+        entity.getGenres().clear();
+        entity.getGenres().add(new data.Genre());
+
+        entity.getDemographics().clear();
+        entity.getDemographics().add(new data.Demographic());
+
+        assertThat(entity.getProducers()).hasSize(1);
+        assertThat(entity.getGenres()).hasSize(1);
+        assertThat(entity.getDemographics()).hasSize(1);
+    }
+
+    @Test
+    void update_mutatesExistingCollectionsRatherThanReplacingReference() {
+        data.Anime existing = new data.Anime();
+        existing.setMalId(200);
+
+        List<data.Producer> originalList = new ArrayList<>();
+        data.Producer ep = new data.Producer();
+        ep.setMalId(777);
+        originalList.add(ep);
+        existing.setProducers(originalList);
+
+        Producer dtoP = new Producer();
+        dtoP.malId = 888;
+        dtoP.name = "New";
+        dtoP.url = "u";
+
+        Anime dto = new Anime();
+        dto.malId = 200;
+        dto.title = "New Title";
+        dto.producers = List.of(dtoP);
+
+        when(em.find(data.Producer.class, 888)).thenReturn(null);
+
+        AnimeMapper.update(existing, dto, em);
+
+        assertSame(originalList, existing.getProducers(), "Producers collection reference must remain same");
+        assertThat(existing.getProducers()).extracting(data.Producer::getMalId).contains(888);
+        assertThat(existing.getTitle()).isEqualTo("New Title");
+    }
+
+    @Test
+    void map_handlesNullCollectionsByInitializingEmptyMutableCollections() {
+        Anime dto = new Anime();
+        dto.malId = 500;
+        dto.title = "Null Collections Test";
+        dto.producers = null;
+        dto.genres = null;
+        dto.demographics = null;
+
+        data.Anime entity = AnimeMapper.map(dto, em);
+
+        assertNotNull(entity.getProducers());
+        assertNotNull(entity.getGenres());
+        assertNotNull(entity.getDemographics());
+
+        assertThat(entity.getProducers()).isEmpty();
+        assertThat(entity.getGenres()).isEmpty();
+        assertThat(entity.getDemographics()).isEmpty();
+
+        entity.getProducers().add(new data.Producer());
+        assertThat(entity.getProducers()).hasSize(1);
+    }
+
+    @Test
+    void map_propagatesExceptionWhenEntityManagerFindFails() {
+        Producer p = new Producer();
+        p.malId = 999;
+        p.name = "X";
+
+        Anime dto = new Anime();
+        dto.malId = 1;
+        dto.title = "Should fail";
+        dto.producers = List.of(p);
+
+        when(em.find(data.Producer.class, 999)).thenThrow(new PersistenceException("db down"));
+
+        assertThrows(PersistenceException.class, () -> AnimeMapper.map(dto, em));
+    }
+
+    @Test
+    void map_propagatesExceptionWhenEntityManagerPersistFails() {
+        Producer p = new Producer();
+        p.malId = 42;
+        p.name = "Y";
+
+        Anime dto = new Anime();
+        dto.malId = 2;
+        dto.title = "Persist fail";
+        dto.producers = List.of(p);
+
+        when(em.find(data.Producer.class, 42)).thenReturn(null);
+        doThrow(new PersistenceException("persist failed")).when(em).persist(any(data.Producer.class));
+
+        assertThrows(PersistenceException.class, () -> AnimeMapper.map(dto, em));
+    }
 }

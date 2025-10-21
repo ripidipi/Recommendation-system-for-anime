@@ -136,7 +136,7 @@ public class UserStat {
         return episodesWatched;
     }
 
-    public void setEpisodesWatched(int episodes_watched) {
-        this.episodesWatched = episodes_watched;
+    public void setEpisodesWatched(int episodesWatched) {
+        this.episodesWatched = episodesWatched;
     }
 }

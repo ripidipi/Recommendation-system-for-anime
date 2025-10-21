@@ -78,7 +78,7 @@ public class UserResyncService {
                     try {
                         tx.begin();
                         for (UserAnimeEntry entry : collected) {
-                            mapper.UserAnimeStatMapper.mapAndCreate(entry, malId, em);
+                            mapper.UserAnimeStatMapper.map(entry, malId, em);
                             processed++;
                             if (processed % persistBatchSize == 0) {
                                 em.flush();
