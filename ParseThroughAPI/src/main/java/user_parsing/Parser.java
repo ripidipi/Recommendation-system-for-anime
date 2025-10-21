@@ -36,7 +36,7 @@ public class Parser {
         try {
             tx.begin();
 
-            Users user = UserMapper.mapOrCreate(dto, em);
+            Users user = UserMapper.map(dto, em);
 
             StatsData stats = FetchUsers.fetchUserStats(dto.username);
 
@@ -61,7 +61,7 @@ public class Parser {
         try {
             tx.begin();
 
-            Users user = UserMapper.mapOrCreate(dto, em);
+            Users user = UserMapper.map(dto, em);
 
             animeListPersist(dto, em);
 
@@ -83,7 +83,7 @@ public class Parser {
 
         boolean ok = FetchUsers.fetchUserAnimeList(dto.username, page -> {
             for (UserAnimeEntry entry : page) {
-                UserAnimeStatMapper.mapAndCreate(entry, dto.malId, em);
+                UserAnimeStatMapper.map(entry, dto.malId, em);
                 if (++counter[0] % batchSize == 0) {
                     em.flush();
                 }

@@ -16,27 +16,26 @@ public final class EmfHolder {
     private static final Object LOCK = new Object();
     private static final Logger LOGGER = LoggerFactory.getLogger(EmfHolder.class);
 
-    private static volatile boolean DISABLED_FOR_TESTS = Boolean.getBoolean("tests.disableDb");
+    private static volatile boolean disabledForTests = Boolean.getBoolean("tests.disableDb");
 
     private EmfHolder() {}
 
     public static void disableForTests() {
-        DISABLED_FOR_TESTS = true;
+        disabledForTests = true;
         closeEmf();
     }
 
     public static EntityManagerFactory setEmfForTests(EntityManagerFactory testEmf) {
         synchronized (LOCK) {
-            DISABLED_FOR_TESTS = false;
+            disabledForTests = false;
             EntityManagerFactory old = emf;
             emf = testEmf;
             return old;
         }
     }
 
-
     public static EntityManagerFactory getEmf() {
-        if (DISABLED_FOR_TESTS) {
+        if (disabledForTests) {
             return null;
         }
         if (emf == null) {
@@ -55,7 +54,6 @@ public final class EmfHolder {
             props.put("hibernate.bytecode.provider", "javassist");
             return Persistence.createEntityManagerFactory("animePU", props);
         } catch (Exception e) {
-            LOGGER.error("Failed to create EntityManagerFactory", e);
             throw new ParserException("Failed to initialize EntityManagerFactory", e);
         }
     }

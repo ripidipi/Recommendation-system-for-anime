@@ -31,6 +31,10 @@ public class UserAnimeStat {
     @Column(name = "last_updated")
     private OffsetDateTime lastUpdated;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", insertable = false, updatable = false)
+    private Users user;
+
     public Integer getUserId() {
         return userId;
     }
@@ -86,10 +90,6 @@ public class UserAnimeStat {
     public void setUser(Users user) {
         this.user = user;
     }
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id", insertable = false, updatable = false)
-    private Users user;
 
     public static class UserAnimeKey implements Serializable {
         private Integer userId;

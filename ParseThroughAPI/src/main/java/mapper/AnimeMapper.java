@@ -2,13 +2,19 @@ package mapper;
 
 import anime_parsing.Anime;
 import data.Demographic;
+import data.Genre;
+import data.Producer;
 import jakarta.persistence.EntityManager;
 
 import java.util.*;
-import java.util.stream.Collectors;
 
 public class AnimeMapper {
 
+    private AnimeMapper() {}
+
+    /**
+     * @return managed entity
+     */
     public static data.Anime map(Anime dto, EntityManager em) {
         data.Anime entity = new data.Anime();
         entity.setMalId(dto.malId);
@@ -39,32 +45,32 @@ public class AnimeMapper {
 
         updateCollection(entity.getProducers(),
                 dto.producers == null ? List.of() :
-                        dto.producers.stream().map(p -> findOrCreateProducer(p, em)).collect(Collectors.toList()),
+                        dto.producers.stream().map(p -> findOrCreateProducer(p, em)).toList(),
                 entity::setProducers);
 
         updateCollection(entity.getLicensors(),
                 dto.licensors == null ? List.of() :
-                        dto.licensors.stream().map(p -> findOrCreateProducer(p, em)).collect(Collectors.toList()),
+                        dto.licensors.stream().map(p -> findOrCreateProducer(p, em)).toList(),
                 entity::setLicensors);
 
         updateCollection(entity.getStudios(),
                 dto.studios == null ? List.of() :
-                        dto.studios.stream().map(p -> findOrCreateProducer(p, em)).collect(Collectors.toList()),
+                        dto.studios.stream().map(p -> findOrCreateProducer(p, em)).toList(),
                 entity::setStudios);
 
         updateCollection(entity.getGenres(),
                 dto.genres == null ? List.of() :
-                        dto.genres.stream().map(g -> findOrCreateGenre(g, em)).collect(Collectors.toList()),
+                        dto.genres.stream().map(g -> findOrCreateGenre(g, em)).toList(),
                 entity::setGenres);
 
         updateCollection(entity.getThemes(),
                 dto.themes == null ? List.of() :
-                        dto.themes.stream().map(g -> findOrCreateGenre(g, em)).collect(Collectors.toList()),
+                        dto.themes.stream().map(g -> findOrCreateGenre(g, em)).toList(),
                 entity::setThemes);
 
         updateCollection(entity.getDemographics(),
                 dto.demographics == null ? List.of() :
-                        dto.demographics.stream().map(d -> findOrCreateDemographic(d, em)).collect(Collectors.toList()),
+                        dto.demographics.stream().map(d -> findOrCreateDemographic(d, em)).toList(),
                 entity::setDemographics);
     }
 
@@ -83,38 +89,69 @@ public class AnimeMapper {
         }
     }
 
-    private static data.Producer findOrCreateProducer(anime_parsing.Producer dto, EntityManager em) {
-        data.Producer existing = em.find(data.Producer.class, dto.malId);
+    private static <T, D> T findOrCreate(
+            Class<T> entityClass,
+            D dto,
+            EntityManager em,
+            java.util.function.ToIntFunction<D> idExtractor,
+            java.util.function.Supplier<T> creator,
+            java.util.function.BiConsumer<T, D> initializer) {
+
+        Integer id = idExtractor.applyAsInt(dto);
+        T existing = em.find(entityClass, id);
         if (existing != null) return existing;
-        data.Producer p = new data.Producer();
-        p.setMalId(dto.malId);
-        p.setName(dto.name);
-        p.setType(dto.type);
-        p.setUrl(dto.url);
-        em.persist(p);
-        return p;
+
+        T entity = creator.get();
+        initializer.accept(entity, dto);
+        em.persist(entity);
+        return entity;
+    }
+
+    private static data.Producer findOrCreateProducer(anime_parsing.Producer dto, EntityManager em) {
+        return findOrCreate(
+                data.Producer.class,
+                dto,
+                em,
+                d -> d.malId,
+                Producer::new,
+                (p, d) -> {
+                    p.setMalId(d.malId);
+                    p.setName(d.name);
+                    p.setType(d.type);
+                    p.setUrl(d.url);
+                }
+        );
     }
 
     private static data.Genre findOrCreateGenre(anime_parsing.Genre dto, EntityManager em) {
-        data.Genre existing = em.find(data.Genre.class, dto.malId);
-        if (existing != null) return existing;
-        data.Genre g = new data.Genre();
-        g.setMalId(dto.malId);
-        g.setName(dto.name);
-        g.setType(dto.type);
-        g.setUrl(dto.url);
-        em.persist(g);
-        return g;
+        return findOrCreate(
+                data.Genre.class,
+                dto,
+                em,
+                d -> d.malId,
+                Genre::new,
+                (g, d) -> {
+                    g.setMalId(d.malId);
+                    g.setName(d.name);
+                    g.setType(d.type);
+                    g.setUrl(d.url);
+                }
+        );
     }
 
     private static data.Demographic findOrCreateDemographic(anime_parsing.Demographic dto, EntityManager em) {
-        data.Demographic existing = em.find(data.Demographic.class, dto.malId);
-        if (existing != null) return existing;
-        data.Demographic d = new data.Demographic();
-        d.setMalId(dto.malId);
-        d.setName(dto.name);
-        d.setUrl(dto.url);
-        em.persist(d);
-        return d;
+        return findOrCreate(
+                data.Demographic.class,
+                dto,
+                em,
+                d -> d.malId,
+                Demographic::new,
+                (x, d) -> {
+                    x.setMalId(d.malId);
+                    x.setName(d.name);
+                    x.setUrl(d.url);
+                }
+        );
     }
+
 }

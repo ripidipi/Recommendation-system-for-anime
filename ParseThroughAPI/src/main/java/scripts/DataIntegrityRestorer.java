@@ -225,7 +225,7 @@ public class DataIntegrityRestorer {
         EntityTransaction tx = em.getTransaction();
         try {
             tx.begin();
-            var userEntity = UserMapper.mapOrCreate(dto, em);
+            var userEntity = UserMapper.map(dto, em);
             var userStat = UserStatMapper.mapOrCreate(stats, userEntity, em);
             em.merge(userStat);
             tx.commit();
