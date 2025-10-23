@@ -4,6 +4,8 @@ import data.UserStat;
 import data.Users;
 import mapper.UserStatMapper;
 import mapper.UserMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import user_parsing.FetchUsers;
 import user_parsing.Parser;
 import user_parsing.StatsData;
@@ -20,6 +22,7 @@ public class DataIntegrityRestorer {
     private final int batchSize;
     private final UserResyncService resyncService;
     private final boolean deleteOnFailure;
+    private static final Logger LOGGER = LoggerFactory.getLogger(DataIntegrityRestorer.class);
 
     public DataIntegrityRestorer(double thresholdPercent, int batchSize, int resyncPersistBatchSize) {
         this(thresholdPercent, batchSize, resyncPersistBatchSize, true);
@@ -48,15 +51,13 @@ public class DataIntegrityRestorer {
                     try {
                         processUserById(user.getMalId());
                     } catch (Exception ex) {
-                        System.out.println("Error processing user " + user.getMalId() +
-                                " (" + user.getUsername() + "): " + ex);
-                        ex.printStackTrace();
+                        LOGGER.error("Error processing user {} ({})",user.getMalId(), user.getUsername(), ex);
                     }
                 }
 
                 offset += users.size();
             }
-            System.out.println("Offset processed: " + offset);
+            LOGGER.info("Offset processed: {}", offset);
         } finally {
             em.close();
         }
@@ -66,12 +67,12 @@ public class DataIntegrityRestorer {
         if (malId == null) return;
 
         UserStatsResult r = readUserAndStats(malId);
-        if (r == null || r.user == null) {
-            System.out.println("User with malId=" + malId + " not found, skipping");
+        if (r.user == null) {
+            LOGGER.warn("User with malId={} not found, skipping", malId);
             return;
         }
 
-        System.out.printf("User %s (malId=%d): nativeCount=%d, reported=%d%n",
+        LOGGER.info("User {} (malId={}): nativeCount={}, reported={}",
                 r.user.getUsername(), malId, r.nativeCount, r.reported);
 
         double diffPercent = computeDiffPercent(r.nativeCount, r.reported);
@@ -82,7 +83,7 @@ public class DataIntegrityRestorer {
         }
 
         if (r.user.getUrl() == null) {
-            System.out.println("Missing profile fields for user " + r.user.getUsername() + ", updating profile only.");
+            LOGGER.warn("Missing profile fields for user {}, updating profile only.",  r.user.getUsername());
             refreshProfileOnly(r.user.getUsername());
         }
     }
@@ -204,8 +205,7 @@ public class DataIntegrityRestorer {
         try {
             resyncService.deleteUserData(malId);
         } catch (Exception ex) {
-            System.out.println("Failed to delete data for " + malId + ": " + ex.getMessage());
-            ex.printStackTrace();
+            LOGGER.error("Failed to delete data for {}: {}", malId, ex.getMessage(), ex);
         }
     }
 
@@ -215,8 +215,7 @@ public class DataIntegrityRestorer {
             user_parsing.StatsData stats = FetchUsers.fetchUserStats(dto.username);
             persistProfileOnly(dto, stats);
         } catch (Exception e) {
-            System.out.println("Failed profile-only refresh for " + username + ": " + e);
-            e.printStackTrace();
+            LOGGER.error("Failed profile-only refresh for {}: ", username, e);
         }
     }
 
@@ -229,7 +228,7 @@ public class DataIntegrityRestorer {
             var userStat = UserStatMapper.mapOrCreate(stats, userEntity, em);
             em.merge(userStat);
             tx.commit();
-            System.out.println("Profile-only update committed for " + dto.username);
+            LOGGER.info("Profile-only update committed for {}", dto.username);
         } catch (Exception e) {
             if (tx.isActive()) tx.rollback();
             throw e;
@@ -238,15 +237,5 @@ public class DataIntegrityRestorer {
         }
     }
 
-    private static class UserStatsResult {
-        final Users user;
-        final long nativeCount;
-        final int reported;
-
-        UserStatsResult(Users user, long nativeCount, int reported) {
-            this.user = user;
-            this.nativeCount = nativeCount;
-            this.reported = reported;
-        }
-    }
+    private record UserStatsResult(Users user, long nativeCount, int reported) {}
 }
