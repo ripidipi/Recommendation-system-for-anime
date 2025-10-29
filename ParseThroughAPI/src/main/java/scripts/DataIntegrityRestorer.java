@@ -37,8 +37,7 @@ public class DataIntegrityRestorer {
     }
 
     public void run() {
-        EntityManager em = emf.createEntityManager();
-        try {
+        try (EntityManager em = emf.createEntityManager()) {
             int offset = 0;
             while (true) {
                 List<Users> users = em.createQuery("SELECT u FROM Users u ORDER BY u.malId", Users.class)
@@ -51,15 +50,13 @@ public class DataIntegrityRestorer {
                     try {
                         processUserById(user.getMalId());
                     } catch (Exception ex) {
-                        LOGGER.error("Error processing user {} ({})",user.getMalId(), user.getUsername(), ex);
+                        LOGGER.error("Error processing user {} ({})", user.getMalId(), user.getUsername(), ex);
                     }
                 }
 
                 offset += users.size();
             }
             LOGGER.info("Offset processed: {}", offset);
-        } finally {
-            em.close();
         }
     }
 
@@ -90,8 +87,9 @@ public class DataIntegrityRestorer {
 
     private UserStatsResult readUserAndStats(int malId) {
         EntityManager em = emf.createEntityManager();
-        EntityTransaction tx = em.getTransaction();
-        try {
+        EntityTransaction tx = null;
+        try (em) {
+            tx = em.getTransaction();
             tx.begin();
 
             Users user = em.find(Users.class, malId);
@@ -117,10 +115,9 @@ public class DataIntegrityRestorer {
             tx.commit();
             return new UserStatsResult(user, countNative, reported);
         } catch (RuntimeException e) {
+            assert tx != null;
             if (tx.isActive()) tx.rollback();
             throw e;
-        } finally {
-            em.close();
         }
     }
 
@@ -132,27 +129,26 @@ public class DataIntegrityRestorer {
     }
 
     private void handleResyncAndUpdate(Users user, int malId, double diffPercent) {
-        System.out.println("MISMATCH (diff=" + (diffPercent * 100) + "%). Starting resync for " + user.getUsername());
+        LOGGER.warn("MISMATCH (diff={}%). Starting resync for {}", diffPercent * 100, user.getUsername());
         boolean resyncOk = false;
         try {
             resyncOk = resyncService.resyncUserUpsertFetchWithRetries(user.getUsername(), malId, 3, 500);
         } catch (Exception e) {
-            System.out.println("Resync threw an exception for " + user.getUsername() + ": " + e.getMessage());
-            e.printStackTrace();
+            LOGGER.error("Resync threw an exception for {}", user.getUsername(), e);
         }
 
         if (!resyncOk) {
-            System.out.println("Resync failed for " + user.getUsername() + ".");
+            LOGGER.info("Resync failed for {}", user.getUsername());
             if (deleteOnFailure) {
-                System.out.println("deleteOnFailure is enabled — deleting user data for malId=" + malId);
+                LOGGER.info("deleteOnFailure is enabled — deleting user data for malId={}", malId);
                 safeDeleteUserData(malId);
             } else {
-                System.out.println("deleteOnFailure is disabled — keeping existing data for " + user.getUsername());
+                LOGGER.info("deleteOnFailure is disabled — keeping existing data for {}", user.getUsername());
             }
             return;
         }
 
-        System.out.println("Resync succeeded for " + user.getUsername() + ". Now updating UserStat.totalEntries from remote stats");
+        LOGGER.info("Resync succeeded for {}. Now updating UserStat.totalEntries from remote stats", user.getUsername());
         updateUserStatFromRemote(user, malId);
     }
 
@@ -161,19 +157,23 @@ public class DataIntegrityRestorer {
             StatsData freshStats = FetchUsers.fetchUserStats(user.getUsername());
             if (freshStats != null) {
                 updateUserStatInTx(freshStats, malId);
-                System.out.println("UserStat updated for " + user.getUsername());
+                LOGGER.info("UserStat updated for {}", user.getUsername());
             } else {
-                System.out.println("Could not fetch remote stats to update user_stat for " + user.getUsername());
+                LOGGER.warn("Could not fetch remote stats to update user_stat for {}", user.getUsername());
                 if (deleteOnFailure) {
-                    System.out.println("deleteOnFailure is enabled — deleting user data because fresh stats couldn't be fetched for malId=" + malId);
+                    LOGGER.info("deleteOnFailure is enabled — deleting user data because fresh " +
+                            "stats couldn't be fetched for malId={}", malId);
                     safeDeleteUserData(malId);
                 }
             }
+        } catch (InterruptedException ie) {
+            LOGGER.error("Error updating user_stat for {}", user.getUsername(), ie);
+            Thread.currentThread().interrupt();
         } catch (Exception e) {
-            System.out.println("Error fetching remote stats after resync for " + user.getUsername() + ": " + e.getMessage());
-            e.printStackTrace();
+            LOGGER.error("Error fetching remote stats after resync for {}", user.getUsername(), e);
             if (deleteOnFailure) {
-                System.out.println("deleteOnFailure is enabled — deleting user data due to exception when fetching fresh stats for malId=" + malId);
+                LOGGER.info("deleteOnFailure is enabled — deleting user data due to exception when " +
+                        "fetching fresh stats for malId={}", malId);
                 safeDeleteUserData(malId);
             }
         }
@@ -181,23 +181,22 @@ public class DataIntegrityRestorer {
 
     private void updateUserStatInTx(StatsData freshStats, int malId) {
         EntityManager em2 = emf.createEntityManager();
-        EntityTransaction tx2 = em2.getTransaction();
-        try {
+        EntityTransaction tx2 = null;
+        try (em2) {
+            tx2 = em2.getTransaction();
             tx2.begin();
             Users mergedUser = em2.find(Users.class, malId);
             var userStat = UserStatMapper.mapOrCreate(freshStats, mergedUser, em2);
             em2.merge(userStat);
             tx2.commit();
         } catch (Exception e) {
+            assert tx2 != null;
             if (tx2.isActive()) tx2.rollback();
-            System.out.println("Failed to update UserStat for malId=" + malId + ": " + e.getMessage());
-            e.printStackTrace();
+            LOGGER.error("Failed to update UserStat for malId={}", malId, e);
             if (deleteOnFailure) {
-                System.out.println("deleteOnFailure is enabled — deleting user data due to failed UserStat update for malId=" + malId);
+                LOGGER.info("deleteOnFailure is enabled — deleting user data due to failed UserStat update for malId={}", malId);
                 safeDeleteUserData(malId);
             }
-        } finally {
-            em2.close();
         }
     }
 
@@ -214,15 +213,19 @@ public class DataIntegrityRestorer {
             user_parsing.UserLite dto = FetchUsers.fetchUserByUsername(username);
             user_parsing.StatsData stats = FetchUsers.fetchUserStats(dto.username);
             persistProfileOnly(dto, stats);
-        } catch (Exception e) {
+        } catch (InterruptedException ie) {
+            LOGGER.error("Error updating user_stat for {}", username, ie);
+            Thread.currentThread().interrupt();
+        }catch (Exception e) {
             LOGGER.error("Failed profile-only refresh for {}: ", username, e);
         }
     }
 
     private void persistProfileOnly(user_parsing.UserLite dto, user_parsing.StatsData stats) {
         EntityManager em = emf.createEntityManager();
-        EntityTransaction tx = em.getTransaction();
-        try {
+        EntityTransaction tx = null;
+        try (em) {
+            tx = em.getTransaction();
             tx.begin();
             var userEntity = UserMapper.map(dto, em);
             var userStat = UserStatMapper.mapOrCreate(stats, userEntity, em);
@@ -230,10 +233,9 @@ public class DataIntegrityRestorer {
             tx.commit();
             LOGGER.info("Profile-only update committed for {}", dto.username);
         } catch (Exception e) {
+            assert tx != null;
             if (tx.isActive()) tx.rollback();
             throw e;
-        } finally {
-            em.close();
         }
     }
 

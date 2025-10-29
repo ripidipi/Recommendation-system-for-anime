@@ -50,7 +50,6 @@ public final class Parser {
                 throw new ParserException("Error saving anime: " + dto.title, e);
             }
         } catch (PersistenceException e) {
-            LOGGER.error("Persistence error when saving anime: {}", dto.title, e);
             throw new ParserException("Persistence error saving anime: " + dto.title, e);
         }
     }

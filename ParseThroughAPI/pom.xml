@@ -30,7 +30,7 @@
         <hikari.version>5.1.0</hikari.version>
 
         <!-- Test deps -->
-        <junit.juiter.version>5.11.0</junit.juiter.version>
+        <junit.juiter.version>5.13.4</junit.juiter.version>
         <assertj.version>3.26.3</assertj.version>
         <mockito.version>5.19.0</mockito.version>
         <instancio.version>4.8.0</instancio.version>
@@ -214,6 +214,14 @@
             <version>${awaitility.version}</version>
             <scope>test</scope>
         </dependency>
+
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <version>${junit.juiter.version}</version>
+            <scope>test</scope>
+        </dependency>
+
 
     </dependencies>
 

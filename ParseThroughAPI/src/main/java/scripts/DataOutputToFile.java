@@ -1,5 +1,7 @@
 package scripts;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import utils.SimpleDataExtract;
 
 import java.io.File;
@@ -8,6 +10,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 
+
 public class DataOutputToFile {
 
     private final int minimumNumberOfAnimeInUserLists;
@@ -15,6 +18,7 @@ public class DataOutputToFile {
     private final int minimumNumberOfRatedAnimeInUserLists;
     private boolean isShowSql;
     private final SimpleDataExtract extractor;
+    private static final Logger LOGGER = LoggerFactory.getLogger(DataOutputToFile.class);
 
     private List<String> userAnimeColumns = List.of(
             "user_id", "anime_id", "score", "status", "last_updated"
@@ -153,7 +157,7 @@ public class DataOutputToFile {
                 " ) AS active_users ON r.user_id = active_users.user_id\n" +
                 buildFilter(animeEvaluationFilters);
         if (isShowSql)
-            System.out.println(usersSql);
+            LOGGER.info(usersSql);
         extractor.exportQueryToParquet(usersSql,
                 List.of(minimumNumberOfCompletedAnimeInUserLists,
                         minimumNumberOfAnimeInUserLists,
@@ -166,7 +170,7 @@ public class DataOutputToFile {
                 buildColumnsForTable("a", animeColumns, ANIME_JOINS_COLUMNS)) +
                 buildFilter(animeFilters);
         if (isShowSql)
-            System.out.println(animeSql);
+            LOGGER.info(animeSql);
         extractor.exportQueryToParquet(animeSql, null, outFile, null);
     }
 
@@ -174,17 +178,19 @@ public class DataOutputToFile {
         Path out = outDir.toPath();
         try {
             Files.createDirectories(out);
-        } catch (IOException e) {System.out.println("Directory creation failed");}
+        } catch (IOException e) {LOGGER.error("Directory creation failed");}
 
         try {
             Scanner sc = new Scanner(System.in);
 
             File animeFile = new File(outDir, "anime.parquet");
             if (animeFile.exists()) {
-                System.out.print("File with anime list, Have already existed. Do you want to skip it? (y/n)");
+                LOGGER.info("File with anime list, Have already existed. Do you want to skip it? (y/n)");
                 String line = sc.nextLine();
                 if (!line.equalsIgnoreCase("y")) {
+
                     animeFile.delete();
+
                     saveAnimes(animeFile);
                 }
             } else {
@@ -193,7 +199,7 @@ public class DataOutputToFile {
 
             File evaluationsFile = new File(outDir, "evaluations.parquet");
             if (evaluationsFile.exists()) {
-                System.out.print("File with users evaluation, Have already existed. Do you want to skip it? (y/n)");
+                LOGGER.info("File with users evaluation, Have already existed. Do you want to skip it? (y/n)");
                 String line = sc.nextLine();
                 if (!line.equalsIgnoreCase("y")) {
                     evaluationsFile.delete();
@@ -203,10 +209,9 @@ public class DataOutputToFile {
                 saveEvaluations(evaluationsFile);
             }
 
-            System.out.println("Export finished to " + outDir.getAbsolutePath());
+            LOGGER.info("Export finished to {}", outDir.getAbsolutePath());
         } catch ( Exception e ) {
-            System.out.println("Error while exporting: " + e.getMessage());
-            e.printStackTrace();
+            LOGGER.error("Error while exporting", e);
         }
     }
 }

@@ -25,18 +25,18 @@ class AnimeParsingTest {
                 .withSeed(1111L)
                 .create();
         assertAll(
-            () -> assertThat(anime.getTitle()).isNotNull(),
-            () -> assertThat(anime.getProducers()).isNotNull(),
-            () -> assertThat(anime.getGenres()).isNotEmpty(),
-            () -> assertThat(anime.getEpisodes()).isNotNull(),
-            () -> assertThat(anime.getApproved()).isNotNull(),
-            () -> assertThat(anime.getMalId()).isNotNull(),
-            () -> assertThat(anime.getUrl()).isNotNull(),
-            () -> assertThat(anime.getStatus()).isNotNull(),
-            () -> assertThat(anime.getScoredBy()).isNotNull(),
-            () -> assertThat(anime.getRating()).isNotNull(),
-            () -> assertThat(anime.getLicensors()).isNotNull(),
-            () -> assertThat(anime.getDemographics()).isNotNull()
+                () -> assertThat(anime.getTitle()).isNotNull(),
+                () -> assertThat(anime.getProducers()).isNotNull(),
+                () -> assertThat(anime.getGenres()).isNotEmpty(),
+                () -> assertThat(anime.getEpisodes()).isNotNull(),
+                () -> assertThat(anime.getApproved()).isNotNull(),
+                () -> assertThat(anime.getMalId()).isNotNull(),
+                () -> assertThat(anime.getUrl()).isNotNull(),
+                () -> assertThat(anime.getStatus()).isNotNull(),
+                () -> assertThat(anime.getScoredBy()).isNotNull(),
+                () -> assertThat(anime.getRating()).isNotNull(),
+                () -> assertThat(anime.getLicensors()).isNotNull(),
+                () -> assertThat(anime.getDemographics()).isNotNull()
         );
     }
 
