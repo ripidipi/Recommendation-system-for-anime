@@ -38,7 +38,7 @@ public final class Parser {
                     em.persist(newAnime);
                 }
                 tx.commit();
-            } catch (RuntimeException e) {
+            } catch (Exception e) {
                 if (tx.isActive()) {
                     try {
                         tx.rollback();
